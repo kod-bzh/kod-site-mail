@@ -220,13 +220,17 @@ export async function loginAction(formData: FormData) {
       ? callbackUrl
       : null;
 
-  if (user?.role === "BUREAU") {
-    redirect("/bureau");
-  }
-
   if (user?.mustChangePassword) {
     redirect("/change-password");
   }
 
-  redirect(safeCallback ?? "/dashboard");
+  if (safeCallback) {
+    redirect(safeCallback);
+  }
+
+  if (user?.role === "BUREAU") {
+    redirect("/bureau");
+  }
+
+  redirect("/dashboard");
 }

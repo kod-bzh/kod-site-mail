@@ -3,6 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 export const API_KEY_PREFIX = "framm_";
 export const MAIL_SEND_SCOPE = "mail:send";
+export const DOMAIN_READ_SCOPE = "domains:read";
+export const DOMAIN_WRITE_SCOPE = "domains:write";
+export const API_KEY_WRITE_SCOPE = "api_keys:write";
+export const MAILBOX_WRITE_SCOPE = "mailboxes:write";
+
+export const MCP_DEFAULT_SCOPES = [
+  MAIL_SEND_SCOPE,
+  DOMAIN_READ_SCOPE,
+  DOMAIN_WRITE_SCOPE,
+  MAILBOX_WRITE_SCOPE,
+] as const;
+
+export const ALL_API_SCOPES = [
+  MAIL_SEND_SCOPE,
+  DOMAIN_READ_SCOPE,
+  DOMAIN_WRITE_SCOPE,
+  API_KEY_WRITE_SCOPE,
+  MAILBOX_WRITE_SCOPE,
+] as const;
 
 export function hashApiKey(token: string): string {
   return createHash("sha256").update(token).digest("hex");

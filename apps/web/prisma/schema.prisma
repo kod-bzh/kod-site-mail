@@ -131,6 +131,8 @@ model User {
   mailboxes              UserMailbox[]
   sharedMailboxMembers     SharedMailboxMember[]
   mailboxDelegationsReceived MailboxDelegation[] @relation("MailboxDelegationsReceived")
+  mcpOAuthCodes              McpOAuthAuthCode[]
+  mcpOAuthTokens             McpOAuthAccessToken[]
 }
 
 model OrganizationMember {
@@ -432,4 +434,51 @@ model OrganizationApiKey {
 
   @@index([organizationId])
   @@index([keyPrefix])
+}
+
+/// Client OAuth public (DCR) pour les connecteurs MCP (Cursor, Claude, …)
+model McpOAuthClient {
+  id           String               @id @default(cuid())
+  clientId     String               @unique
+  clientName   String
+  redirectUris String[]
+  createdAt    DateTime             @default(now())
+  codes        McpOAuthAuthCode[]
+  tokens       McpOAuthAccessToken[]
+}
+
+model McpOAuthAuthCode {
+  id                  String        @id @default(cuid())
+  code                String        @unique
+  clientId            String
+  client              McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  redirectUri         String
+  codeChallenge       String
+  codeChallengeMethod String
+  state               String
+  resource            String?
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt           DateTime
+  createdAt           DateTime      @default(now())
+
+  @@index([expiresAt])
+}
+
+model McpOAuthAccessToken {
+  id               String        @id @default(cuid())
+  tokenHash        String        @unique
+  tokenPrefix      String
+  refreshTokenHash String?       @unique
+  clientId         String
+  client           McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource         String?
+  expiresAt        DateTime
+  refreshExpiresAt DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

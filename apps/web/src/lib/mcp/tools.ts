@@ -1,0 +1,397 @@
+import { z } from "zod";
+import {
+  ALL_API_SCOPES,
+  API_KEY_WRITE_SCOPE,
+  DOMAIN_READ_SCOPE,
+  DOMAIN_WRITE_SCOPE,
+  MAIL_SEND_SCOPE,
+  MAILBOX_WRITE_SCOPE,
+  MCP_DEFAULT_SCOPES,
+  createOrganizationApiKey,
+} from "@/lib/api-keys";
+import {
+  actorHasScope,
+  resolveActorOrganizationId,
+  type V1Actor,
+} from "@/lib/api/v1-auth";
+import {
+  addDomainForOrg,
+  getOrganizationDomain,
+  listOrganizationDomains,
+  previewDomainDns,
+  verifyDomainForOrg,
+} from "@/lib/domains/manage";
+import { createMailboxForOrg } from "@/lib/mail/create-mailbox";
+import { sendOrgMail } from "@/lib/mail/org-mail-send";
+import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
+import { prisma } from "@/lib/prisma";
+
+export type McpToolResult = {
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
+};
+
+function ok(data: unknown): McpToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+}
+
+function fail(error: string, extra?: Record<string, unknown>): McpToolResult {
+  return {
+    isError: true,
+    content: [{ type: "text", text: JSON.stringify({ error, ...extra }) }],
+  };
+}
+
+const fqdnField = z.string().min(3).max(253);
+const orgSlugField = z.string().min(1).max(80).optional();
+
+export type McpToolDef = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  handler: (args: Record<string, unknown>, actor: V1Actor) => Promise<McpToolResult>;
+};
+
+async function requireOrg(
+  actor: V1Actor,
+  options?: { organizationSlug?: string; fqdn?: string }
+) {
+  return resolveActorOrganizationId(actor, options);
+}
+
+export const FRAMM_MCP_TOOLS: McpToolDef[] = [
+  {
+    name: "list_organizations",
+    description: "Liste les organisations Framm (jeton admin uniquement).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    handler: async (_args, actor) => {
+      if (!actor.isAdmin) return fail("forbidden");
+      const orgs = await prisma.organization.findMany({
+        select: { id: true, name: true, slug: true, status: true },
+        orderBy: { slug: "asc" },
+      });
+      return ok({ organizations: orgs });
+    },
+  },
+  {
+    name: "get_dns_records",
+    description:
+      "Retourne les enregistrements DNS à ajouter chez le registrar pour héberger le mail sur Framm/Stalwart. N'écrit rien.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fqdn: { type: "string", description: "Nom de domaine (ex. asso.fr)" },
+      },
+      required: ["fqdn"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const parsed = z.object({ fqdn: fqdnField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const result = await previewDomainDns(parsed.data.fqdn);
+      if (!result.ok) return fail(result.error);
+      return ok({
+        fqdn: result.fqdn,
+        mailHost: result.mailHost,
+        records: result.records,
+        instruction:
+          "Ajouter ces enregistrements chez le registrar, attendre la propagation, puis appeler verify_domain.",
+      });
+    },
+  },
+  {
+    name: "add_domain",
+    description:
+      "Enregistre un nom de domaine sur une organisation Framm, synchronise Stalwart et renvoie les DNS à publier.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fqdn: { type: "string", description: "Nom de domaine à ajouter" },
+        organizationSlug: {
+          type: "string",
+          description: "Slug de l'organisation (requis avec le jeton admin)",
+        },
+      },
+      required: ["fqdn"],
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, DOMAIN_WRITE_SCOPE)) return fail("forbidden");
+      const parsed = z.object({ fqdn: fqdnField, organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, {
+        organizationSlug: parsed.data.organizationSlug,
+        fqdn: parsed.data.fqdn,
+      });
+      if (!org.ok) return fail(org.error);
+      const result = await addDomainForOrg(org.organizationId, parsed.data.fqdn);
+      if (!result.ok) return fail(result.error);
+      return ok({
+        ...result,
+        instruction:
+          "Publier records chez le registrar (hôte relatif). Puis verify_domain. Ensuite get_api_key et send_mail.",
+      });
+    },
+  },
+  {
+    name: "list_domains",
+    description: "Liste les domaines d'une organisation et leur statut DNS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        organizationSlug: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, DOMAIN_READ_SCOPE) && !actorHasScope(actor, DOMAIN_WRITE_SCOPE)) {
+        return fail("forbidden");
+      }
+      const parsed = z.object({ organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, { organizationSlug: parsed.data.organizationSlug });
+      if (!org.ok) return fail(org.error);
+      return ok({ domains: await listOrganizationDomains(org.organizationId) });
+    },
+  },
+  {
+    name: "get_domain_status",
+    description: "Statut Framm d'un domaine (PENDING_DNS, VERIFIED, ACTIVE) sans relancer la vérif DNS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fqdn: { type: "string" },
+        organizationSlug: { type: "string" },
+      },
+      required: ["fqdn"],
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, DOMAIN_READ_SCOPE) && !actorHasScope(actor, DOMAIN_WRITE_SCOPE)) {
+        return fail("forbidden");
+      }
+      const parsed = z.object({ fqdn: fqdnField, organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, {
+        organizationSlug: parsed.data.organizationSlug,
+        fqdn: parsed.data.fqdn,
+      });
+      if (!org.ok) return fail(org.error);
+      const domain = await getOrganizationDomain(org.organizationId, parsed.data.fqdn);
+      if (!domain) return fail("domain_not_found");
+      return ok({ domain });
+    },
+  },
+  {
+    name: "verify_domain",
+    description:
+      "Vérifie les DNS publics du domaine (MX, SPF, autoconfig…) et met à jour le statut Framm.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fqdn: { type: "string" },
+        organizationSlug: { type: "string" },
+      },
+      required: ["fqdn"],
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, DOMAIN_WRITE_SCOPE)) return fail("forbidden");
+      const parsed = z.object({ fqdn: fqdnField, organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, {
+        organizationSlug: parsed.data.organizationSlug,
+        fqdn: parsed.data.fqdn,
+      });
+      if (!org.ok) return fail(org.error);
+      const result = await verifyDomainForOrg(org.organizationId, parsed.data.fqdn);
+      if (!result.ok) return fail(result.error);
+      return ok({
+        domain: result.domain,
+        verified: result.check.verified,
+        domainExists: result.check.domainExists,
+        records: result.records,
+        checks: result.check.results.map((row) => ({
+          type: row.record.type,
+          host: row.record.name,
+          expected: row.record.value,
+          found: row.found,
+          ok: row.ok,
+          issue: row.issue,
+        })),
+      });
+    },
+  },
+  {
+    name: "list_api_keys",
+    description: "Liste les préfixes de clés API (le secret n'est jamais relisible).",
+    inputSchema: {
+      type: "object",
+      properties: { organizationSlug: { type: "string" } },
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, API_KEY_WRITE_SCOPE) && !actor.isAdmin) {
+        return fail("forbidden");
+      }
+      const parsed = z.object({ organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, { organizationSlug: parsed.data.organizationSlug });
+      if (!org.ok) return fail(org.error);
+      const keys = await prisma.organizationApiKey.findMany({
+        where: { organizationId: org.organizationId, revokedAt: null },
+        select: { id: true, name: true, keyPrefix: true, scopes: true, lastUsedAt: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      });
+      return ok({ keys });
+    },
+  },
+  {
+    name: "get_api_key",
+    description:
+      "Crée une clé API organisation (framm_…) pour envoyer des mails. Le secret n'est renvoyé qu'une fois.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Libellé de la clé (défaut MCP)" },
+        organizationSlug: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, API_KEY_WRITE_SCOPE) && !actor.isAdmin) {
+        return fail("forbidden");
+      }
+      const parsed = z
+        .object({
+          name: z.string().min(1).max(80).optional(),
+          organizationSlug: orgSlugField,
+        })
+        .safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, { organizationSlug: parsed.data.organizationSlug });
+      if (!org.ok) return fail(org.error);
+      const allowed = actor.isAdmin
+        ? [...ALL_API_SCOPES]
+        : MCP_DEFAULT_SCOPES.filter((scope) => actorHasScope(actor, scope));
+      const created = await createOrganizationApiKey({
+        organizationId: org.organizationId,
+        name: parsed.data.name?.trim() || "MCP",
+        scopes: allowed.length > 0 ? allowed : [MAIL_SEND_SCOPE],
+        createdById: actor.userId,
+      });
+      return ok({
+        id: created.id,
+        prefix: created.prefix,
+        token: created.token,
+        scopes: allowed,
+        warning: "Stocker le token maintenant : il ne sera plus relisible.",
+      });
+    },
+  },
+  {
+    name: "ensure_mailbox",
+    description:
+      "Crée une boîte Stalwart (ex. noreply@domaine) si elle n'existe pas. Nécessaire avant send_mail sur un nouveau domaine.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fqdn: { type: "string" },
+        localPart: { type: "string", description: "Partie locale (défaut noreply)" },
+        password: { type: "string", description: "Mot de passe ; généré si omis" },
+        displayName: { type: "string" },
+        organizationSlug: { type: "string" },
+      },
+      required: ["fqdn"],
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, MAILBOX_WRITE_SCOPE) && !actor.isAdmin) {
+        return fail("forbidden");
+      }
+      const parsed = z
+        .object({
+          fqdn: fqdnField,
+          localPart: z.string().min(1).max(64).optional(),
+          password: z.string().min(8).max(128).optional(),
+          displayName: z.string().max(120).optional(),
+          organizationSlug: orgSlugField,
+        })
+        .safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, {
+        organizationSlug: parsed.data.organizationSlug,
+        fqdn: parsed.data.fqdn,
+      });
+      if (!org.ok) return fail(org.error);
+      const result = await createMailboxForOrg({
+        organizationId: org.organizationId,
+        fqdn: parsed.data.fqdn,
+        localPart: parsed.data.localPart ?? "noreply",
+        password: parsed.data.password,
+        displayName: parsed.data.displayName,
+      });
+      if (!result.ok) return fail(result.error);
+      return ok(result);
+    },
+  },
+  {
+    name: "explain_mail_send_api",
+    description:
+      "Explique comment envoyer des emails via l'API Framm à la place de Resend, SendGrid, Mailgun ou Nodemailer : URL, auth, payload, mapping Resend, exemples curl/fetch, erreurs. À lire avant d'intégrer l'envoi dans une app.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    handler: async () => ok(getMailSendApiGuide()),
+  },
+  {
+    name: "send_mail",
+    description:
+      "Envoie un email via l'API Framm/Stalwart (remplace Resend). From d'un domaine vérifié + boîte existante. Pour le contrat HTTP à copier dans une app, appeler explain_mail_send_api.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string" },
+        to: {
+          oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+        },
+        subject: { type: "string" },
+        text: { type: "string" },
+        html: { type: "string" },
+        replyTo: { type: "string" },
+        organizationSlug: { type: "string" },
+      },
+      required: ["from", "to", "subject"],
+      additionalProperties: false,
+    },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, MAIL_SEND_SCOPE)) return fail("forbidden");
+      const parsed = z
+        .object({
+          from: z.string().min(3).max(320),
+          to: z.union([z.string().min(3), z.array(z.string().min(3)).min(1).max(50)]),
+          subject: z.string().min(1).max(998),
+          text: z.string().max(1_000_000).optional(),
+          html: z.string().max(2_000_000).optional(),
+          replyTo: z.string().max(320).optional(),
+          organizationSlug: orgSlugField,
+        })
+        .safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, {
+        organizationSlug: parsed.data.organizationSlug,
+        fqdn: parsed.data.from.split("@")[1],
+      });
+      if (!org.ok) return fail(org.error);
+      const result = await sendOrgMail({
+        organizationId: org.organizationId,
+        from: parsed.data.from,
+        to: parsed.data.to,
+        subject: parsed.data.subject,
+        text: parsed.data.text,
+        html: parsed.data.html,
+        replyTo: parsed.data.replyTo,
+      });
+      if (!result.ok) return fail(result.error, { detail: result.detail });
+      return ok({ ok: true, messageId: result.messageId });
+    },
+  },
+];

@@ -18,6 +18,9 @@ const REQUIRED_DELEGATES = [
   "mailboxMigration",
   "migrationEvent",
   "organizationApiKey",
+  "mcpOAuthClient",
+  "mcpOAuthAuthCode",
+  "mcpOAuthAccessToken",
 ] as const;
 
 /** Champs récents à vérifier sur le runtime embarqué (singleton dev avant `prisma generate`). */

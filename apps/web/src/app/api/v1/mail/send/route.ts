@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hasScope, MAIL_SEND_SCOPE, verifyBearerApiKey } from "@/lib/api-keys";
+import { resolveV1ActorFromRequest } from "@/lib/api/v1-auth";
 import { sendAdminMail, verifyAdminMailToken } from "@/lib/mail/admin-send";
 import { findOrganizationIdByFromAddress, sendOrgMail } from "@/lib/mail/org-mail-send";
+import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  const actor = await resolveV1ActorFromRequest(req);
+  if (!actor) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return NextResponse.json(getMailSendApiGuide());
+}
 
 function extractBearerToken(authorization: string | null): string | null {
   if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
