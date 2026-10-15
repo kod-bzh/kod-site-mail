@@ -70,7 +70,7 @@ export function getMailSendApiGuide() {
       method: "GET", url: `${base}/api/v1/mail/messages?messageId=<id>&from=<adresse>`,
       auth: "Même clé mail:send ; accès limité aux envois de cette clé. Admin : organizationSlug requis.",
       identity: "messageId est propre à chaque boîte. Préciser from ; 409 en cas d’ambiguïté. La liste sans messageId fournit id et rfcMessageId uniques.",
-      meaning: "200 à l’envoi confirme la soumission, pas la réception ni le classement hors spam. ACCEPTED = serveur distant accepte ; UNKNOWN = résultat non confirmé. Aucun renvoi automatique après résultat incertain.",
+      meaning: "200 à l’envoi confirme la soumission, pas la réception ni le classement hors spam. ACCEPTED = acceptation technique avec réponse 2xx, réception non confirmée ; UNKNOWN = résultat non confirmé. Aucun renvoi automatique après résultat incertain.",
       retention: "Métadonnées de suivi et rapports : 90 jours. Aucun corps ni pièce jointe conservé dans ce journal. Les Bcc restent privés.",
     },
     protections: {

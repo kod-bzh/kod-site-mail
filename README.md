@@ -196,7 +196,7 @@ Succès inchangé : `{ "ok": true, "messageId": "..." }`. Le MCP `send_mail` acc
 
 ### Suivi de livraison et protection de la réputation
 
-Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne garantit ni la réception, ni le classement hors spam.
+Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne garantit ni la réception, ni le classement hors spam. `ACCEPTED` indique une acceptation technique avec réponse 2xx ; `delivered: unknown` ne certifie pas la réception finale.
 
 - `GET /api/v1/mail/messages` : 50 derniers envois de la clé utilisée (`mail:send`). Ajouter `messageId` et `from` pour vérifier une soumission ; les identifiants JMAP sont propres à chaque boîte. `id` et `rfcMessageId` sont uniques. L’admin précise `organizationSlug`. Une ambiguïté retourne 409.
 - `GET` rafraîchit les résultats dus ; le worker les contrôle chaque minute, avec un intervalle de dix minutes par message pendant sept jours. Les confirmations finales cessent d’être interrogées. Les erreurs restent visibles ; aucune relance automatique d’un message incertain.

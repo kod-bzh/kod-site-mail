@@ -1907,7 +1907,7 @@
       "RESERVED": "Préparation",
       "SUBMITTED": "Soumis au serveur",
       "QUEUED": "En attente / nouvel essai serveur",
-      "ACCEPTED": "Accepté par le serveur distant",
+      "ACCEPTED": "Accepté, réception non confirmée",
       "DELIVERED": "Livraison confirmée",
       "FAILED": "Échec définitif",
       "PARTIAL": "Résultat partiel",
