@@ -404,7 +404,7 @@ framm_stalwart_ensure_ready() {
     return 1
   }
 
-  python3 /opt/framm/deploy/scripts/ensure-mail-attachment-limits.py || return 1
+  STALWART_URL=http://127.0.0.1:8080 python3 /opt/framm/deploy/scripts/ensure-mail-attachment-limits.py || return 1
   framm_stalwart_ensure_cors || true
 
   local code
