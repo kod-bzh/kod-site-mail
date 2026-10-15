@@ -54,4 +54,10 @@ framm_stalwart_ensure_le_tls || true
 systemctl enable nginx
 REMOTE
 
+framm_ssh "$MAIL_PUBLIC_IP" bash <<'REMOTE'
+if [[ -s /etc/framm/ovh-dkim.ini ]]; then
+  bash /opt/framm/deploy/scripts/install-dkim-rotation.sh
+fi
+REMOTE
+
 echo "Déploiement mail terminé"
