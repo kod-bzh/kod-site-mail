@@ -212,3 +212,20 @@ Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne ga
 DMARC commence en observation (`p=none`) avec `rua`. Après inventaire de tous les expéditeurs et analyse des rapports, renforcer progressivement vers `quarantine`, puis `reject`. Ces politiques protègent contre l’usurpation ; elles ne garantissent pas le classement en boîte principale. Pour une campagne marketing : consentement, traitement des plaintes et désabonnement en un clic sont nécessaires ; l’API transactionnelle ne les invente pas.
 
 Test d’intégration sans envoi : base PostgreSQL jetable uniquement sur `127.0.0.1:15439/framm_test`, appliquer les migrations puis `DATABASE_URL=… npx tsx scripts/check-mail-policy.ts` depuis `apps/web`.
+
+
+### Rotation DKIM OVH de mail.d2-group.fr
+
+La rotation est exécutée **sur la VM mail**, sans dépendre du Mac ni d’un agent interactif : `framm-dkim-rotation.timer` contrôle le domaine toutes les 15 minutes. Le coordinateur `deploy/scripts/rotate-dkim-ovh.py` crée une clé RSA 2048 bits en attente, la publie chez OVH, puis exige la même clé sur les deux NS autoritaires et les résolveurs Google/Cloudflare avant activation. Il active d’abord la nouvelle signature, puis retire l’ancienne de la signature. Une panne peut laisser deux signatures valides, jamais volontairement supprimer la dernière signature active.
+
+- Périmètre figé : uniquement les TXT `sélecteur._domainkey.mail` dans la zone `d2-group.fr`. Les MX, SPF, DMARC, TXT de validation et sélecteurs Microsoft sont exclus. Un sélecteur existant avec une autre clé entraîne un refus d’écrasement.
+- Une nouvelle clé est préparée tous les 90 jours. L’ancien TXT RSA est conservé **30 jours après bascule** ; sa suppression exige encore une clé active vérifiée. Les clés privées retirées ne sont pas purgées automatiquement. L’ancien TXT Ed25519 est conservé et ne sera ni réactivé ni supprimé par ce coordinateur.
+- Stalwart est en `dkimManagement: Manual` pour ce domaine uniquement. La rotation native v0.16.8 retire les clés échues même si la publication remplaçante échoue ; le coordinateur remplace donc ce cycle natif. `dnsManagement` reste manuel : aucune gestion générale de la zone n’est confiée à Stalwart.
+- Accès OVH existant limité à la zone, fichier serveur `/etc/framm/ovh-dkim.ini`, mode 0600. La clé Stalwart est lue localement dans la configuration serveur existante et n’est jamais envoyée à OVH. Les clés privées restent sur le serveur. Aucun secret dans Git ou les journaux.
+- État persistant : `/var/lib/framm-dkim/state.json`, avec dernier contrôle, erreurs, sélecteur actif, prochaine rotation et délais de retrait. Un verrou empêche les exécutions concurrentes. `--status` indique aussi si le contrôle est récent. Les erreurs font échouer l’unité systemd et restent visibles dans son journal.
+- Installation sur la VM mail, après dépôt de l’accès OVH autorisé : `bash deploy/scripts/install-dkim-rotation.sh`. Vérification : `systemctl status framm-dkim-rotation.timer`, `journalctl -u framm-dkim-rotation.service`, puis `python3 deploy/scripts/rotate-dkim-ovh.py --status`.
+- Une rotation contrôlée peut être demandée avec `--operation-id IDENTIFIANT_UNIQUE`. Réutiliser le même identifiant reprend une opération interrompue sans créer une nouvelle rotation une fois celle-ci terminée. Ne pas ajouter cette option au timer.
+- Tests des pannes et des garde-fous : `python3 -m unittest discover -s deploy/tests -p test_dkim_rotation.py -v`.
+- Le script local de publication de l’autre agent peut consulter les DNS avec sa clé Kod `domains:read` uniquement, stockée en mode 0600 ; il n’a pas besoin d’un jeton administrateur ou d’un droit d’envoi. Ce script local n’est pas le moteur de rotation.
+
+La bascule initiale a été vérifiée sur un message reçu chez Gmail : DKIM du nouveau sélecteur, SPF et DMARC passent. Ce contrôle d’authentification ne certifie pas le classement hors spam.

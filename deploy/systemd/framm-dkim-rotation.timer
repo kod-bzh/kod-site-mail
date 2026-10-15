@@ -1,0 +1,12 @@
+[Unit]
+Description=Check DKIM publication and rotation every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*:0/15
+RandomizedDelaySec=60
+Persistent=true
+Unit=framm-dkim-rotation.service
+
+[Install]
+WantedBy=timers.target

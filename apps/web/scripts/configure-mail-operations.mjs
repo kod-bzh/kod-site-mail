@@ -16,13 +16,13 @@ async function j(calls){const r=await fetch(process.env.STALWART_URL+"/jmap",{me
  }
  const domains=await j([["x:Domain/get",{ids:[box.domain.stalwartDomainId],properties:["dkimManagement"]},"d"]]);
  const management=domains[0][1].list[0].dkimManagement;
- // Retain automatic RSA rotation and all existing timing settings; keep Ed25519 DNS for historical messages.
- await j([["x:Domain/set",{update:{[box.domain.stalwartDomainId]:{dkimManagement:{...management,algorithms:{Dkim1RsaSha256:true}}}}},"d"]]);
+ // Preserve an external coordinator’s Manual lifecycle; only narrow native Automatic algorithms.
+ if(management["@type"]==="Automatic")await j([["x:Domain/set",{update:{[box.domain.stalwartDomainId]:{dkimManagement:{...management,algorithms:{Dkim1RsaSha256:true}}}}},"d"]]);
  const q=await j([["x:DkimSignature/query",{filter:{domainId:box.domain.stalwartDomainId}},"q"]]);
  const k=await j([["x:DkimSignature/get",{ids:q[0][1].ids,properties:["@type","stage","selector"]},"k"]]);
  const updates=Object.fromEntries(k[0][1].list.filter(key=>key["@type"]==="Dkim1Ed25519Sha256" && key.stage==="active").map(key=>[key.id,{stage:"retired",nextTransitionAt:null}]));
  if(Object.keys(updates).length)await j([["x:DkimSignature/set",{update:updates},"s"]]);
  await j([["x:Action/set",{create:{reload:{"@type":"ReloadSettings"}}},"a"]]);
  await p.domain.update({where:{id:box.domain.id},data:{replyToAddress:`reply@${domain}`}});
- console.log(JSON.stringify({mailbox:box.address,aliases:["abuse","dmarc","reply"],owner:user.email,dkim:"RSA only; automatic rotation retained"}));
+ console.log(JSON.stringify({mailbox:box.address,aliases:["abuse","dmarc","reply"],owner:user.email,dkim:management["@type"]==="Automatic"?"RSA only; native rotation retained":"External/manual lifecycle preserved"}));
 })().catch(e=>{console.error(e.message);process.exitCode=1}).finally(()=>p.$disconnect());

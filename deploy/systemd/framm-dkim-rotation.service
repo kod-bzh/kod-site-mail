@@ -1,0 +1,21 @@
+[Unit]
+Description=Safe DKIM rotation for mail.d2-group.fr
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/framm/deploy/scripts/rotate-dkim-ovh.py
+TimeoutStartSec=180
+UMask=0077
+StateDirectory=framm-dkim
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
