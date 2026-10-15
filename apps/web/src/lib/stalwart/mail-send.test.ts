@@ -48,7 +48,9 @@ describe("Stalwart outbound message", () => {
     expect(calls.some(c => c[0] === "EmailSubmission/set" || c[0] === "Email/set")).toBe(false);
   });
   it("still sends the legacy payload", async () => {
-    const { send } = await setup();
+    const { send, calls } = await setup();
     expect(await send(base)).toMatchObject({ ok: true, messageId: "submission" });
+    const email = (calls.find(c => c[0] === "Email/set")![1].create as Record<string, Record<string, unknown>>).e1;
+    expect(email.messageId).toEqual([expect.stringMatching(/^[a-f0-9-]+@example\.org$/)]);
   });
 });

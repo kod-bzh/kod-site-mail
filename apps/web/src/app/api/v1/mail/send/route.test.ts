@@ -18,7 +18,7 @@ describe("POST mail/send compatibility", () => {
     const response = await POST(request({ ...base, ...extra }));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, messageId: "submission" });
-    expect(mocks.send).toHaveBeenCalledWith({ organizationId: "org", ...base, ...extra });
+    expect(mocks.send).toHaveBeenCalledWith({ organizationId: "org", initiatorId: "key", ...base, ...extra });
   });
   it("rejects an unreadable file before sending anything", async () => {
     const response = await POST(request({ ...base, attachments: [{ filename: "bad.pdf", content: "%%%" }] }));

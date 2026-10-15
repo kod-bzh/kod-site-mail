@@ -146,7 +146,8 @@
     },
     "modules": "Modules",
     "billing": "Facturation",
-    "delegatedMailbox": "déléguée"
+    "delegatedMailbox": "déléguée",
+    "mailDelivery": "Suivi des envois"
   },
   "modules": {
     "title": "Modules",
@@ -1879,5 +1880,43 @@
         }
       }
     }
+  },
+  "mailDelivery": {
+    "title": "Suivi des envois",
+    "monitor": "Contrôle des résultats",
+    "active": "Actif",
+    "notObserved": "Non confirmé récemment",
+    "limits": "Montée progressive",
+    "limitsValue": "{minute} messages/minute · {daily} destinataires/24 h par organisation",
+    "reputation": "Réputation externe",
+    "notMeasured": "Non mesurée dans cette interface",
+    "postmaster": "Ouvrir Google Postmaster",
+    "recent": "50 derniers envois",
+    "date": "Date",
+    "from": "Expéditeur",
+    "subject": "Objet",
+    "recipients": "Destinataires",
+    "status": "Résultat",
+    "details": "Voir les réponses par destinataire",
+    "empty": "Aucun envoi suivi depuis l’activation du journal.",
+    "suppressed": "Destinataires bloqués",
+    "suppressedHint": "Les adresses rejetées définitivement comme inexistantes sont bloquées. Les refus liés au spam ou à l’authentification ne bloquent pas automatiquement une adresse.",
+    "noneSuppressed": "Aucun destinataire bloqué.",
+    "reportsHint": "Les rapports DMARC et les messages aux adresses postmaster et abuse sont reçus dans la boîte de supervision du domaine. Une absence de rapports ne constitue pas une preuve de bonne réputation.",
+    "statuses": {
+      "RESERVED": "Préparation",
+      "SUBMITTED": "Soumis au serveur",
+      "QUEUED": "En attente / nouvel essai serveur",
+      "ACCEPTED": "Accepté par le serveur distant",
+      "DELIVERED": "Livraison confirmée",
+      "FAILED": "Échec définitif",
+      "PARTIAL": "Résultat partiel",
+      "UNKNOWN": "Résultat non confirmé"
+    },
+    "reports": "Rapports DMARC reçus",
+    "reportTrust": "Ces rapports sont déclaratifs et ne certifient pas la réputation. Aucun durcissement automatique de la politique DMARC. Métadonnées conservées 90 jours.",
+    "noReports": "Aucun rapport reçu à ce jour. Les premiers rapports dépendent des destinataires et du volume d’envoi.",
+    "reportCounts": "{total} messages déclarés · DKIM aligné : {dkim} · SPF aligné : {spf}",
+    "reportIps": "Voir les adresses IP déclarées"
   }
 }

@@ -28,6 +28,8 @@ const ERROR_STATUS: Record<string, number> = {
   invalid_body: 400,
   invalid_from: 400,
   invalid_to: 400,
+  recipient_suppressed: 422,
+  rate_limited: 429,
   missing_content: 400,
   domain_not_in_org: 403,
   domain_not_verified: 403,
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest) {
     const result = await sendOrgMail({
       organizationId,
       ...parsed.data,
+      initiatorId: apiKey?.id ?? "admin",
     });
 
     if (!result.ok) {

@@ -111,6 +111,10 @@ model Organization {
   walletTransactions WalletTransaction[]
   auditLogs          AuditLog[]
   mailboxMigrations  MailboxMigration[]
+  dmarcReports       DmarcReport[]
+  outboundMessages   OutboundMessage[]
+  mailSuppressions   MailSuppression[]
+  mailSendBudget     MailSendBudget?
   apiKeys            OrganizationApiKey[]
 }
 
@@ -178,11 +182,56 @@ model Domain {
   status           DomainStatus @default(PENDING_DNS)
   dnsRecordsJson   Json?
   stalwartDomainId String?
+  senderName       String?
+  replyToAddress   String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   mailboxes        Mailbox[]
 
   @@unique([organizationId, fqdn])
+}
+
+/// Delivery observations, never a promise of inbox placement. Bodies and files are not stored here.
+model OutboundMessage {
+  id               String   @id @default(cuid())
+  organizationId   String
+  accountId        String
+  fromAddress      String
+  initiatorId      String   @default("admin")
+  submissionId     String?
+  rfcMessageId     String   @unique
+  subject          String
+  recipients       Json
+  recipientCount   Int
+  status           String   @default("RESERVED")
+  deliveryJson     Json?
+  lastError        String?
+  nextCheckAt      DateTime @default(now())
+  leaseUntil       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([status, nextCheckAt])
+  @@index([organizationId, submissionId])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model MailSuppression {
+  id             String   @id @default(cuid())
+  organizationId String
+  address        String
+  reason         String
+  source         String
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, address])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// Prevent simultaneous workers from racing organization-wide sending limits.
+model MailSendBudget {
+  organizationId String @id
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model Mailbox {
@@ -481,4 +530,32 @@ model McpOAuthAccessToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model MailMonitorState {
+  leaseUntil DateTime?
+  id        String   @id
+  checkedAt DateTime @default(now())
+  lastError String?
+}
+
+model DmarcReport {
+  id                String   @id
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mailboxId         String
+  sourceMessageId   String
+  filename          String
+  reporter          String?
+  reportedDomain    String?
+  reportIdentifier  String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  totalCount        Int      @default(0)
+  dkimPassCount     Int      @default(0)
+  spfPassCount      Int      @default(0)
+  sourcesJson       Json?
+  error             String?
+  createdAt         DateTime @default(now())
+  @@index([organizationId, createdAt])
 }

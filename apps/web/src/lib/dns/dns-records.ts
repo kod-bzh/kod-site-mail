@@ -1,4 +1,4 @@
-export type DnsRecord = { type: string; name: string; value: string };
+export type DnsRecord = { type: string; name: string; value: string; stage?: string };
 
 export type MxRecordFinding = {
   priority: number;

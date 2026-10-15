@@ -192,3 +192,23 @@ curl -X POST 'https://kod.bzh/api/v1/mail/send' \
 ```
 
 Succès inchangé : `{ "ok": true, "messageId": "..." }`. Le MCP `send_mail` accepte les mêmes champs ; `explain_mail_send_api` fournit le contrat et les exemples. Le domaine doit appartenir à l’organisation et une boîte Stalwart doit être disponible.
+
+
+### Suivi de livraison et protection de la réputation
+
+Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne garantit ni la réception, ni le classement hors spam.
+
+- `GET /api/v1/mail/messages` : 50 derniers envois de la clé utilisée (`mail:send`). Ajouter `messageId` et `from` pour vérifier une soumission ; les identifiants JMAP sont propres à chaque boîte. `id` et `rfcMessageId` sont uniques. L’admin précise `organizationSlug`. Une ambiguïté retourne 409.
+- `GET` rafraîchit les résultats dus ; le worker les contrôle chaque minute, avec un intervalle de dix minutes par message pendant sept jours. Les confirmations finales cessent d’être interrogées. Les erreurs restent visibles ; aucune relance automatique d’un message incertain.
+- MCP : `get_mail_delivery_status` expose les mêmes observations ; `verify_domain` contrôle DNS, signature activée et reverse DNS. Les clés DKIM en attente de rotation sont également fournies pour publication.
+- Interface : **Suivi des envois**, résultats par destinataire, erreurs, adresses bloquées et rapports DMARC reçus. Les Bcc ne sont jamais montrés aux destinataires, mais restent accessibles au propriétaire de la clé et aux administrateurs de son organisation.
+- Par défaut : **20 messages/minute, 200 destinataires sur 24 heures glissantes par organisation**. Les réservations sont sérialisées en base entre processus et clés. Variables administrateur : `MAIL_SEND_MINUTE_LIMIT`, `MAIL_SEND_DAILY_RECIPIENT_LIMIT` (entiers positifs). Monter progressivement après mesure, sans trafic artificiel.
+- Les rejets définitifs d’adresse `5.1.1`, `5.1.2`, `5.1.3`, `5.1.6` entraînent un blocage. Les refus de politique/spam et les pannes temporaires n’en entraînent pas. Un blocage annule le message entier, y compris pour un Bcc.
+- Gestion explicite et auditée : `POST` ou `DELETE /api/v1/mail/suppressions`, JSON `{address, reason?, organizationSlug?}`, scope `api_keys:write` ou admin. `reason` : `manual`, `hard_bounce`, `complaint`, `unsubscribe`. Erreurs d’envoi : **422 recipient_suppressed**, **429 rate_limited** ; aucun message envoyé dans ces cas.
+- Journal : métadonnées uniquement, pas de corps ou pièces jointes ; conservation 90 jours. Les blocages restent jusqu’à correction et retrait par un opérateur autorisé.
+- Rapports DMARC : créer `postmaster@domaine` et l’alias `dmarc@domaine`, publier une adresse `rua` surveillée. Le worker lit les rapports XML, gzip et ZIP (2 Mo maximum compressés et décompressés). Les déclarations reçues ne sont pas une mesure certifiée de réputation ; elles ne modifient jamais automatiquement la politique DNS.
+- Réglages d’un domaine : `senderName` et `replyToAddress` servent de valeurs par défaut ; un client peut toujours fournir son nom et son `replyTo`. Le script opérateur `apps/web/scripts/configure-mail-operations.mjs <domaine> <email-proprietaire>` configure les alias de supervision et la signature RSA en conservant ses délais de rotation. Créer la boîte postmaster au préalable avec `ensure_mailbox`.
+
+DMARC commence en observation (`p=none`) avec `rua`. Après inventaire de tous les expéditeurs et analyse des rapports, renforcer progressivement vers `quarantine`, puis `reject`. Ces politiques protègent contre l’usurpation ; elles ne garantissent pas le classement en boîte principale. Pour une campagne marketing : consentement, traitement des plaintes et désabonnement en un clic sont nécessaires ; l’API transactionnelle ne les invente pas.
+
+Test d’intégration sans envoi : base PostgreSQL jetable uniquement sur `127.0.0.1:15439/framm_test`, appliquer les migrations puis `DATABASE_URL=… npx tsx scripts/check-mail-policy.ts` depuis `apps/web`.

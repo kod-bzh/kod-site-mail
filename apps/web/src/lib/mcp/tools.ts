@@ -23,6 +23,8 @@ import {
   verifyDomainForOrg,
 } from "@/lib/domains/manage";
 import { createMailboxForOrg } from "@/lib/mail/create-mailbox";
+import { refreshOutbound } from "@/lib/mail/delivery";
+import { DELIVERY_NOTICE } from "@/lib/mail/delivery-status";
 import { sendOrgMail } from "@/lib/mail/org-mail-send";
 import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
 import { verifyDomainDns } from "@/lib/dns/verify";
@@ -348,6 +350,32 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
     handler: async () => ok(getMailSendApiGuide()),
   },
   {
+    name: "get_mail_delivery_status",
+    description: "Liste les 50 derniers envois ou vérifie une soumission. Un serveur distant qui accepte ne garantit pas l’absence de spam. Accès limité à l’organisation et aux envois de la clé ou de l’utilisateur connecté.",
+    inputSchema: { type: "object", properties: { messageId: { type: "string" }, from: { type: "string" }, organizationSlug: { type: "string" } }, additionalProperties: false },
+    handler: async (args, actor) => {
+      if (!actorHasScope(actor, MAIL_SEND_SCOPE)) return fail("forbidden");
+      const parsed = z.object({ messageId: z.string().max(300).optional(), from: z.string().email().optional(), organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments");
+      const org = await requireOrg(actor, parsed.data);
+      if (!org.ok) return fail(org.error);
+      const messageId = parsed.data.messageId;
+      const where = { organizationId: org.organizationId, ...(actor.isAdmin ? {} : { initiatorId: actor.apiKeyId ?? actor.userId ?? "unavailable" }),
+        ...(parsed.data.from ? { fromAddress: parsed.data.from.toLowerCase() } : {}),
+        ...(messageId ? { OR: [{ id: messageId }, { submissionId: messageId }, { rfcMessageId: messageId }] } : {}) };
+      const records = await prisma.outboundMessage.findMany({ where, orderBy: { createdAt: "desc" }, take: messageId ? 2 : 50,
+        omit: { accountId: true, initiatorId: true, leaseUntil: true } });
+      if (messageId && records.length > 1) return fail("ambiguous_message_id", { detail: "Préciser from ou utiliser id/rfcMessageId unique." });
+      if (messageId && !records.length) return fail("not_found");
+      if (messageId && records[0].submissionId && records[0].nextCheckAt <= new Date()) {
+        await refreshOutbound(records[0].id);
+        const message = await prisma.outboundMessage.findUnique({ where: { id: records[0].id }, omit: { accountId: true, initiatorId: true, leaseUntil: true } });
+        return ok({ message, notice: DELIVERY_NOTICE });
+      }
+      return ok({ messages: records, notice: DELIVERY_NOTICE });
+    },
+  },
+  {
     name: "send_mail",
     description:
       "Envoie un email via l'API Framm/Stalwart (remplace Resend). From d'un domaine ajouté + boîte existante. DNS non bloquant ; vérifier la délivrabilité avec verify_domain. Pour le contrat HTTP à copier dans une app, appeler explain_mail_send_api.",
@@ -383,6 +411,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       if (!org.ok) return fail(org.error);
       const result = await sendOrgMail({
         organizationId: org.organizationId,
+        initiatorId: actor.apiKeyId ?? actor.userId ?? "admin",
         from: parsed.data.from,
         to: parsed.data.to,
         subject: parsed.data.subject,

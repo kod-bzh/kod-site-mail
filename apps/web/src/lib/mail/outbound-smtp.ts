@@ -11,6 +11,7 @@ export type OutboundMailPayload = {
   bcc?: string | string[];
   replyTo?: string;
   attachments?: MailAttachment[];
+  rfcMessageId?: string;
 };
 
 /** Envoi via JMAP Stalwart (HTTPS). Jamais TEM Scaleway, jamais SMTP 465 (fermé depuis K8s). */
@@ -29,5 +30,6 @@ export async function sendViaStalwartMailbox(
     bcc: payload.bcc,
     replyTo: payload.replyTo,
     attachments: payload.attachments,
+    rfcMessageId: payload.rfcMessageId,
   });
 }

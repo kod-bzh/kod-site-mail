@@ -17,7 +17,7 @@ export async function checkDomainDeliverability(fqdn: string, platformHost = get
     const dkim = record.name.includes("._domainkey.");
     const dmarc = record.name === `_dmarc.${fqdn}`;
     const spf = record.type === "TXT" && record.name === fqdn;
-    const row: DnsCheckRow = { record, ok: false, found: "—", issue: null, required: dkim || dmarc || spf };
+    const row: DnsCheckRow = { record, ok: false, found: "—", issue: null, required: (dkim && record.stage !== "pending") || dmarc || spf };
     try {
       if (record.type === "TXT") {
         const entries = (await resolver.resolveTxt(record.name)).map(chunks => chunks.join(""));
@@ -56,6 +56,8 @@ export async function checkDomainDeliverability(fqdn: string, platformHost = get
     }
     return row;
   }));
+  const pendingKeys = results.filter(row => row.record.stage === "pending");
+  if (pendingKeys.length) warnings.push(`Rotation DKIM : ${pendingKeys.length} clé(s) en attente. Publier les TXT indiqués avant activation ; conserver les anciennes clés DNS pendant leur période de retrait.`);
   if (!configuration.signingConfigured) results.push({
     record: { type: "DKIM", name: fqdn, value: "Clé RSA active pour ce domaine" },
     ok: false, found: "Non disponible", issue: null, required: true,
@@ -82,7 +84,7 @@ export async function checkDomainDeliverability(fqdn: string, platformHost = get
   let domainExists = true;
   try { await resolver.resolveTxt(fqdn); } catch (error) { domainExists = (error as NodeJS.ErrnoException).code !== "ENOTFOUND"; }
   if (results.some(row => row.record.name === `_dmarc.${fqdn}` && row.ok && /observation/.test(row.detail ?? ""))) {
-    warnings.push("DMARC p=none : ajouter une adresse de rapports rua surveillée, vérifier tous les expéditeurs, puis renforcer la politique progressivement.");
+    warnings.push("DMARC p=none : contrôler les rapports de l’adresse rua surveillée (la créer et la publier si absente), vérifier tous les expéditeurs, puis renforcer progressivement la politique.");
   }
   warnings.push("La signature et l’alignement SPF/DKIM/DMARC doivent aussi être confirmés dans les en-têtes d’un message reçu à l’extérieur. La réputation, les plaintes, les rebonds et le contenu ne sont pas certifiés par un contrôle DNS. Pour les campagnes : consentement et désabonnement en un clic.");
   return { verified: results.filter(row => row.required).every(row => row.ok), domainExists, results, warnings, checkedAt: new Date().toISOString(), sendingAllowed: true };

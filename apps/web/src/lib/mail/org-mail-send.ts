@@ -1,3 +1,4 @@
+import { MailPolicyError, reserveOutbound } from "./delivery";
 import { validateAttachments, normalizeMailRecipients, type MailAttachment } from "./send-payload";
 import { prisma } from "@/lib/prisma";
 import { MAIL_USABLE_DOMAIN_STATUSES } from "@/lib/domain-status";
@@ -17,12 +18,15 @@ export type OrgMailSendInput = {
   cc?: string | string[];
   bcc?: string | string[];
   attachments?: MailAttachment[];
+  initiatorId?: string;
 };
 
 export type OrgMailSendError =
   | "invalid_from"
   | "invalid_to"
   | "invalid_attachments"
+  | "recipient_suppressed"
+  | "rate_limited"
   | "missing_content"
   | "domain_not_in_org"
   | "domain_not_verified"
@@ -132,14 +136,19 @@ export async function sendOrgMail(
   const domainError = await validateFromDomainForOrg(input.organizationId, fromEmail);
   if (domainError) return { ok: false, error: domainError };
 
+  const domainSettings = await prisma.domain.findUnique({
+    where: { organizationId_fqdn: { organizationId: input.organizationId, fqdn: extractDomain(fromEmail) } },
+    select: { senderName: true, replyToAddress: true },
+  });
   const mailPayload = {
-    from: input.from.trim(),
+    from: !input.from.includes("<") && domainSettings?.senderName
+      ? `${domainSettings.senderName.replace(/[\r\n<>"]/g, "")} <${fromEmail}>` : input.from.trim(),
     ...recipients,
     attachments: input.attachments,
     subject: input.subject.trim(),
     text: input.text,
     html: input.html,
-    replyTo: input.replyTo,
+    replyTo: input.replyTo ?? domainSettings?.replyToAddress ?? undefined,
   };
 
   const smtpAuth = await findStalwartSmtpAuth(fromEmail, input.organizationId);
@@ -151,8 +160,30 @@ export async function sendOrgMail(
     };
   }
 
-  const result = await sendViaStalwartMailbox(smtpAuth.accountId, mailPayload);
-
+  let reserved;
+  try {
+    reserved = await reserveOutbound({ organizationId: input.organizationId, accountId: smtpAuth.accountId,
+      fromAddress: fromEmail, subject: mailPayload.subject, recipients, initiatorId: input.initiatorId });
+  } catch (error) {
+    if (error instanceof MailPolicyError) return { ok: false, error: error.code, detail: error.message };
+    return { ok: false, error: "send_failed", detail: "Suivi des envois indisponible : aucun message envoyé." };
+  }
+  let result;
+  try {
+    result = await sendViaStalwartMailbox(smtpAuth.accountId, { ...mailPayload, rfcMessageId: reserved.rfcMessageId });
+  } catch {
+    await prisma.outboundMessage.update({ where: { id: reserved.id }, data: { status: "UNKNOWN", lastError: "Réponse de soumission inconnue ; ne pas renvoyer automatiquement." } });
+    return { ok: false, error: "send_failed", detail: "Réponse du serveur inconnue ; vérifier le suivi avant de réessayer." };
+  }
+  try {
+    await prisma.outboundMessage.update({ where: { id: reserved.id }, data: result.ok
+      ? { status: "SUBMITTED", submissionId: result.messageId }
+      : { status: "UNKNOWN", lastError: result.detail ?? result.code } });
+  } catch {
+    // Do not turn SMTP acceptance into an HTTP failure that invites a duplicate retry.
+    if (!result.ok) return { ok: false, error: "send_failed", detail: "Réponse non confirmée : vérifier le journal avant tout nouvel essai." };
+    console.error("[mail] Message accepté, suivi non persisté", reserved.id);
+  }
   if (!result.ok) {
     return {
       ok: false,

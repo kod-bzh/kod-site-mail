@@ -157,6 +157,7 @@ export async function DashboardShell({
           label: t("domains"),
           icon: "globe",
         },
+        { id: "mail-delivery", href: "/dashboard/mail-delivery", label: t("mailDelivery"), icon: "mail" },
         {
           id: "api-keys",
           href: "/dashboard/api-keys",

@@ -1,3 +1,5 @@
+import { pollDmarcReports } from "@/lib/mail/dmarc-monitor";
+import { pollOutbound } from "@/lib/mail/delivery";
 import { syncPricingIfStale } from "@/lib/billing/pricing";
 import { processMonthlyWalletDeductions } from "@/lib/billing/wallet";
 import { prisma } from "@/lib/prisma";
@@ -37,6 +39,15 @@ async function run() {
   }
 
   startMigrationPoller();
+  let deliveryPolling = false;
+  const checkDelivery = async () => {
+    if (deliveryPolling) return;
+    deliveryPolling = true;
+    try { await pollOutbound(); await pollDmarcReports(); } catch (error) { console.error("Delivery monitoring unavailable", error instanceof Error ? error.message : "unknown"); }
+    finally { deliveryPolling = false; }
+  };
+  void checkDelivery();
+  setInterval(() => { void checkDelivery(); }, 60_000);
 
   setInterval(syncUsage, DAY_MS);
   setInterval(() => {

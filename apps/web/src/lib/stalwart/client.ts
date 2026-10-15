@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import type { RecipientDelivery } from "@/lib/mail/delivery-status";
 import { decodeAttachments, normalizeMailRecipients, type MailAttachment } from "@/lib/mail/send-payload";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -189,7 +191,7 @@ export async function createDomain(fqdn: string) {
         create: {
           [id]: {
             name: fqdn,
-            dkimManagement: { "@type": "Automatic" },
+            dkimManagement: { "@type": "Automatic", algorithms: { Dkim1RsaSha256: true } },
             dnsManagement: { "@type": "Manual" },
           },
         },
@@ -944,11 +946,13 @@ function jmapSendError(res: unknown): string | null {
       type?: string;
       description?: string;
       notCreated?: Record<string, { type?: string; description?: string; properties?: string[] }>;
+      notUpdated?: Record<string, { type?: string; description?: string; properties?: string[] }>;
     };
     if (name.endsWith("/error") || name === "error") {
       return body?.description || body?.type || name;
     }
-    const first = body?.notCreated ? Object.values(body.notCreated)[0] : undefined;
+    const errors = body?.notCreated ?? body?.notUpdated;
+    const first = errors ? Object.values(errors)[0] : undefined;
     if (first) {
       const props = first.properties?.length ? ` (${first.properties.join(", ")})` : "";
       return `${first.description || first.type || "notCreated"}${props}`;
@@ -979,6 +983,7 @@ export async function sendMailViaStalwartJmap(input: {
   bcc?: string | string[];
   replyTo?: string;
   attachments?: MailAttachment[];
+  rfcMessageId?: string;
 }): Promise<
   { ok: true; messageId: string; via: string } | { ok: false; code: "smtp_not_configured" | "send_failed"; detail?: string }
 > {
@@ -1046,6 +1051,7 @@ export async function sendMailViaStalwartJmap(input: {
     from: [{ ...(fromName ? { name: fromName } : {}), email: fromEmail }],
     to: to.map((email) => ({ email })),
     subject: input.subject,
+    messageId: [input.rfcMessageId ?? `${randomUUID()}@${fromEmail.split("@")[1]}`],
     keywords: { $seen: true, $draft: true },
   };
   if (cc.length) emailCreate.cc = cc.map((email) => ({ email }));
@@ -1177,7 +1183,7 @@ export function getBulwarkJmapUrl(): string {
 
 /** Public DKIM material only; private signing keys never leave Stalwart. */
 export async function getDomainDkimRecords(fqdn: string): Promise<{
-  records: { type: string; name: string; value: string }[];
+  records: { type: string; name: string; value: string; stage?: string }[];
   available: boolean;
   signingEnabled: boolean | null;
 }> {
@@ -1195,10 +1201,10 @@ export async function getDomainDkimRecords(fqdn: string): Promise<{
     domainId: string; selector: string; publicKey: string; stage: string; "@type": string;
   }[] } | undefined;
   const records = (body?.list ?? []).filter(key =>
-    key.domainId === domain.id && key.stage === "active" && key.publicKey &&
+    key.domainId === domain.id && ["active", "pending"].includes(key.stage) && key.publicKey &&
     ["Dkim1RsaSha256", "Dkim1Ed25519Sha256"].includes(key["@type"])
   ).map(key => ({
-    type: "TXT", name: `${key.selector}._domainkey.${fqdn}`,
+    type: "TXT", name: `${key.selector}._domainkey.${fqdn}`, stage: key.stage,
     value: `v=DKIM1; k=${key["@type"] === "Dkim1RsaSha256" ? "rsa" : "ed25519"}; p=${key.publicKey}`,
   }));
   const responses = (result as { methodResponses?: unknown[][] }).methodResponses;
@@ -1206,5 +1212,61 @@ export async function getDomainDkimRecords(fqdn: string): Promise<{
   const expected = { match: { "0": { if: "is_local_domain(sender_domain) && !is_empty(authenticated_as)", then: "sender_domain" } }, else: "false" };
   const signingEnabled = policy === "sender_domain" || JSON.stringify(policy) === JSON.stringify(expected)
     ? true : policy === false || policy === "false" ? false : null;
-  return { records, available: records.some(record => record.value.includes("k=rsa")), signingEnabled };
+  return { records, available: records.some(record => record.stage === "active" && record.value.includes("k=rsa")), signingEnabled };
+}
+
+/** Observed recipient status; SMTP acceptance is never presented as inbox placement. */
+export async function getSubmissionDelivery(accountId: string, submissionId: string): Promise<
+  { ok: true; deliveryStatus: Record<string, RecipientDelivery> | null } | { ok: false; detail: string }
+> {
+  const result = await jmapCall([["EmailSubmission/get", { accountId, ids: [submissionId], properties: ["id", "deliveryStatus"] }, "delivery"]], 15_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result);
+  if (error) return { ok: false, detail: error };
+  const row = asJmapResponses(result).find(row => row[0] === "EmailSubmission/get");
+  const body = row?.[1] as { list?: { deliveryStatus?: Record<string, RecipientDelivery> | null }[] } | undefined;
+  if (!body?.list?.length) return { ok: false, detail: "Soumission non disponible sur le serveur ; état non confirmé." };
+  return { ok: true, deliveryStatus: body.list[0].deliveryStatus ?? null };
+}
+
+type ReportPart = { blobId?: string; name?: string; type?: string; size?: number; subParts?: ReportPart[] };
+export async function listDmarcMessages(accountId: string, address: string) {
+  const result = await jmapCall([
+    ["Email/query", { accountId, filter: { operator: "AND", conditions: [
+      { to: address, hasAttachment: true }, { notKeyword: "$frammDmarcProcessed" },
+    ] }, sort: [{ property: "receivedAt", isAscending: true }], limit: 20 }, "q"],
+    ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "bodyStructure"] }, "g"],
+  ], 20_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result);
+  if (error) throw Error(error);
+  const body = asJmapResponses(result).find(row => row[0] === "Email/get")?.[1] as { list?: { id: string; bodyStructure: ReportPart }[] } | undefined;
+  if (!body?.list) throw Error("Rapports entrants non vérifiables");
+  const flatten = (part: ReportPart, depth = 0): ReportPart[] => depth > 16 ? [] : [part, ...(part.subParts ?? []).flatMap(child => flatten(child, depth + 1))];
+  return body.list.map(message => ({ id: message.id, attachments: flatten(message.bodyStructure).filter(part => part.blobId && part.name && /\.(xml|gz|zip)$/i.test(part.name)).slice(0, 10) }));
+}
+export async function markDmarcProcessed(accountId: string, emailId: string) {
+  const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$frammDmarcProcessed": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result);
+  if (error) throw Error(error);
+}
+export async function downloadReportBlob(accountId: string, blobId: string): Promise<Buffer> {
+  const headers = { Authorization: `Bearer ${STALWART_API_KEY}` };
+  const sessionResponse = await fetch(`${getStalwartJmapUrl()}/.well-known/jmap`, { headers, signal: AbortSignal.timeout(15_000) });
+  if (!sessionResponse.ok) throw Error(`Session HTTP ${sessionResponse.status}`);
+  const session = await sessionResponse.json() as { downloadUrl?: string };
+  if (!session.downloadUrl) throw Error("Téléchargement indisponible");
+  const url = session.downloadUrl.replace("{accountId}", encodeURIComponent(accountId)).replace("{blobId}", encodeURIComponent(blobId)).replace("{name}", "report.xml").replace("{type}", "application%2Foctet-stream");
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+  if (!response.ok || !response.body) throw Error(`Rapport HTTP ${response.status}`);
+  const chunks: Buffer[] = []; let total = 0;
+  const reader = response.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > 2_000_000) { await reader.cancel(); throw Error("Rapport entrant trop volumineux"); }
+      chunks.push(Buffer.from(value));
+    }
+  } finally { reader.releaseLock(); }
+  return Buffer.concat(chunks);
 }
