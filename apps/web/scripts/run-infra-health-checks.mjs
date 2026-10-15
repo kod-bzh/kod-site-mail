@@ -9,7 +9,7 @@ import { connect } from "node:net";
 const platformDomain =
   process.env.PLATFORM_DOMAINS?.split(",")[0]?.trim().toLowerCase() ||
   process.env.PRIMARY_PLATFORM_DOMAIN?.trim().toLowerCase() ||
-  "kod-digor.bzh";
+  "kod.bzh";
 
 const stalwartUrl = (process.env.STALWART_URL || "").replace(/\/$/, "");
 const webmailUrl = (process.env.WEBMAIL_URL || "").replace(/\/$/, "");

@@ -19,10 +19,10 @@ case "$CMD" in
     export APP_BZH_ENABLED="${APP_BZH_ENABLED:-false}"
     "${ROOT}/deploy/scripts/tf-apply.sh"
     "${ROOT}/deploy/scripts/render-alertmanager.sh"
-    echo "DNS activé pour kod-digor.bzh"
+    echo "DNS activé pour kod.bzh"
     ;;
   wait-dns)
-    exec "${ROOT}/deploy/scripts/wait-dns-and-apply.sh" "${2:-kod-digor.bzh}"
+    exec "${ROOT}/deploy/scripts/wait-dns-and-apply.sh" "${2:-kod.bzh}"
     ;;
   enable-app-bzh)
     export DNS_ENABLED=true

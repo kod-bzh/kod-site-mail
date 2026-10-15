@@ -9,7 +9,7 @@ import {
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
-  process.env.PLATFORM_DOMAINS = "kod-digor.bzh,app.bzh";
+  process.env.PLATFORM_DOMAINS = "kod.bzh,app.bzh";
   delete process.env.ADMIN_MAIL_TOKEN;
   delete process.env.ADMIN_MAIL_ALLOW_ANY_DOMAIN;
 });
@@ -43,14 +43,14 @@ describe("verifyAdminMailToken", () => {
 
 describe("extractEmailAddress", () => {
   it("extrait l'adresse d'un From nommé", () => {
-    expect(extractEmailAddress("Bureau Kod Digor <contact@kod-digor.bzh>")).toBe(
-      "contact@kod-digor.bzh"
+    expect(extractEmailAddress("Bureau Kod Digor <contact@kod.bzh>")).toBe(
+      "contact@kod.bzh"
     );
   });
 
   it("normalise une adresse simple", () => {
-    expect(extractEmailAddress("  Contact@Kod-Digor.BZH ")).toBe(
-      "contact@kod-digor.bzh"
+    expect(extractEmailAddress("  Contact@Kod.BZH ")).toBe(
+      "contact@kod.bzh"
     );
   });
 
@@ -61,12 +61,12 @@ describe("extractEmailAddress", () => {
 
 describe("isFromAddressAllowed", () => {
   it("autorise une adresse d'un domaine plateforme, même non enregistrée", () => {
-    expect(isFromAddressAllowed("nimporte-quoi@kod-digor.bzh")).toBe(true);
+    expect(isFromAddressAllowed("nimporte-quoi@kod.bzh")).toBe(true);
     expect(isFromAddressAllowed("Asso <boite-inexistante@app.bzh>")).toBe(true);
   });
 
   it("autorise les sous-domaines d'un domaine plateforme", () => {
-    expect(isFromAddressAllowed("noreply@mail.kod-digor.bzh")).toBe(true);
+    expect(isFromAddressAllowed("noreply@mail.kod.bzh")).toBe(true);
   });
 
   it("refuse un domaine externe par défaut", () => {

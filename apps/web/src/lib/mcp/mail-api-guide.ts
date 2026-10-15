@@ -1,5 +1,5 @@
 function apiBaseUrl() {
-  return (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "https://kod-digor.bzh").replace(
+  return (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "https://kod.bzh").replace(
     /\/$/,
     ""
   );

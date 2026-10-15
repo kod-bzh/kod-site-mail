@@ -91,7 +91,7 @@ module "dns_kod_digor" {
     { name = "autodiscover", type = "CNAME", data = "mail.${var.primary_platform_domain}." },
     { name = "_imaps._tcp", type = "SRV", data = "0 1 993 mail.${var.primary_platform_domain}." },
     { name = "_submission._tcp", type = "SRV", data = "0 1 587 mail.${var.primary_platform_domain}." },
-    { name = "", type = "MX", data = "10 mail.${var.primary_platform_domain}." },
+    # kod.bzh receives through Google Workspace; retain its independently managed MX.
   ]
 }
 

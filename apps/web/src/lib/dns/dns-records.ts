@@ -38,7 +38,7 @@ export function getPlatformMailHost() {
   return (
     process.env.PRIMARY_PLATFORM_DOMAIN ??
     process.env.PRIMARY_MAIL_HOST ??
-    "kod-digor.bzh"
+    "kod.bzh"
   );
 }
 

@@ -7,7 +7,7 @@ module "prod" {
   admin_ips               = var.admin_ips
   ssh_public_key          = var.ssh_public_key
   environment             = "staging"
-  primary_platform_domain = "staging.kod-digor.bzh"
+  primary_platform_domain = "staging.kod.bzh"
   app_bzh_enabled         = false
   dns_enabled             = var.dns_enabled
 }

@@ -555,13 +555,16 @@ export async function resolveStalwartDomainId(
   fqdn: string,
   cachedId?: string | null
 ): Promise<{ id: string | null; unavailable: boolean }> {
-  if (cachedId) return { id: cachedId, unavailable: false };
-
   const queryRes = await jmapCall([["x:Domain/query", { filter: { text: fqdn } }, "q1"]]);
   if (isStalwartFailure(queryRes)) return { id: null, unavailable: true };
 
-  const ids = extractJmapQueryIds(queryRes);
-  return { id: ids[0] ?? null, unavailable: false };
+  const ids = [...new Set([...(cachedId ? [cachedId] : []), ...extractJmapQueryIds(queryRes)])];
+  if (!ids.length) return { id: null, unavailable: false };
+  const domains = await jmapCall([["x:Domain/get", { ids, properties: ["name"] }, "g"]]);
+  if (isStalwartFailure(domains)) return { id: null, unavailable: true };
+  const body = firstMethodResponse(domains)?.[1] as { list?: { id: string; name: string }[] };
+  const exact = body?.list?.find(domain => domain.name?.toLowerCase() === fqdn.toLowerCase());
+  return { id: exact?.id ?? null, unavailable: false };
 }
 
 /** Redirection email → Stalwart MailingList (un ou plusieurs destinataires). */

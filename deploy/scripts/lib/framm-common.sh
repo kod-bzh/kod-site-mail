@@ -41,7 +41,7 @@ framm_load_env() {
     exit 1
   fi
 
-  PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod-digor.bzh}"
+  PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod.bzh}"
   framm_init_ssh
 }
 
@@ -78,7 +78,7 @@ framm_ci_setup_ssh() {
 }
 
 framm_load_deploy_context() {
-  PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod-digor.bzh}"
+  PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod.bzh}"
 
   if [[ -n "${MAIL_PUBLIC_IP:-}" ]]; then
     export MAIL_PUBLIC_IP

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-ZONE="${1:-kod-digor.bzh}"
+ZONE="${1:-kod.bzh}"
 MAX_ATTEMPTS="${2:-60}"
 SLEEP_SEC="${3:-30}"
 

@@ -11,8 +11,8 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-AUTH_URL="${AUTH_URL:-https://kod-digor.bzh}"
-WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod-digor.bzh}"
+AUTH_URL="${AUTH_URL:-https://kod.bzh}"
+WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod.bzh}"
 FAIL=0
 
 check() {

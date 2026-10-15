@@ -26,10 +26,10 @@ if [[ -z "${STALWART_API_KEY:-}" ]]; then
   export STALWART_API_KEY
 fi
 
-export STALWART_URL="${STALWART_URL:-https://mail.kod-digor.bzh}"
-export WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod-digor.bzh}"
-export PLATFORM_DOMAINS="${PLATFORM_DOMAINS:-kod-digor.bzh}"
-export PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod-digor.bzh}"
+export STALWART_URL="${STALWART_URL:-https://mail.kod.bzh}"
+export WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod.bzh}"
+export PLATFORM_DOMAINS="${PLATFORM_DOMAINS:-kod.bzh}"
+export PRIMARY_PLATFORM_DOMAIN="${PRIMARY_PLATFORM_DOMAIN:-kod.bzh}"
 
 if [[ -z "${OUTBOUND_SMTP_RELAY_HOST:-}" ]]; then
   for key in OUTBOUND_SMTP_RELAY_HOST OUTBOUND_SMTP_RELAY_PORT OUTBOUND_SMTP_RELAY_USER OUTBOUND_SMTP_RELAY_SECRET; do

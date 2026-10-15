@@ -43,7 +43,7 @@ export function publicOrigin(req?: Request): string {
   );
   if (fromEnv) return fromEnv;
   if (req) return new URL(req.url).origin;
-  return "https://kod-digor.bzh";
+  return "https://kod.bzh";
 }
 
 export function mcpResourceUrl(req?: Request): string {

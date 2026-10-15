@@ -13,7 +13,7 @@ Architecture cible (migration Kapsule en cours, voir plus bas) :
 - **1 VM Mail** (DEV1-M) : Stalwart — un serveur mail reste volontairement hors cluster (réputation IP stable)
 - **Registre d'images** Scaleway (`rg.fr-par.scw.cloud/framm-kod-digor`)
 - **S3** : uploads, backups, archives froides, tfstate
-- **Domaines plateforme** : `kod-digor.bzh`, `app.bzh` (activable plus tard)
+- **Domaines plateforme** : `kod.bzh`, `app.bzh` (activable plus tard)
 
 Pendant la transition, la VM App existante continue de servir la prod : la bascule DNS est pilotée par `TF_VAR_k8s_lb_ip` (voir runbook).
 
@@ -21,7 +21,7 @@ Pendant la transition, la VM App existante continue de servir la prod : la bascu
 
 - Terraform >= 1.5
 - Compte Scaleway avec clés API
-- Domaine `kod-digor.bzh` acheté chez Scaleway (zone DNS auto-créée)
+- Domaine `kod.bzh` acheté chez Scaleway (zone DNS auto-créée)
 - Une clé SSH publique (`~/.ssh/id_ed25519.pub` ou `~/.ssh/id_rsa.pub`)
 
 ## Déploiement en une commande
@@ -110,7 +110,7 @@ L'infra (Terraform, DNS, HTTPS initial) reste sur `bin/framm bootstrap` en local
 
 ## Observabilité
 
-- Grafana : `https://grafana.kod-digor.bzh`
+- Grafana : `https://grafana.kod.bzh`
 - Prometheus supervise les deux VMs (node-exporter sur App **et** Mail), l'application web et la fraîcheur des backups.
 - Alertes envoyées à l'email défini dans `BUREAU_ADMIN_EMAIL` (ou `ALERT_EMAIL`).
 

@@ -21,7 +21,7 @@ scrape_configs:
         labels:
           role: app
       # Port 9100 ouvert uniquement à l'IP de la VM App (security group Terraform)
-      - targets: ['mail.kod-digor.bzh:9100']
+      - targets: ['mail.kod.bzh:9100']
         labels:
           role: mail
 

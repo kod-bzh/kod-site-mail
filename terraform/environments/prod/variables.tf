@@ -37,7 +37,7 @@ variable "tem_enabled" {
 
 variable "primary_platform_domain" {
   type    = string
-  default = "kod-digor.bzh"
+  default = "kod.bzh"
 }
 
 variable "app_bzh_enabled" {

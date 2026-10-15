@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 function resolvePublicApiBaseUrl(): string {
   const authUrl = process.env.AUTH_URL?.replace(/\/$/, "");
   if (authUrl) return authUrl;
-  return "https://kod-digor.bzh";
+  return "https://kod.bzh";
 }
 
 export default async function ApiKeysPage() {

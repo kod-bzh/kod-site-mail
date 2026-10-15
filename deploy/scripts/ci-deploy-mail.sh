@@ -52,5 +52,5 @@ framm_mail_obtain_missing_certs "$DOMAIN" "${BUREAU_ADMIN_EMAIL:-}"
 framm_mail_apply_nginx "$DOMAIN"
 REMOTE
 
-WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod-digor.bzh}" "${ROOT}/deploy/scripts/health-check.sh"
+WEBMAIL_URL="${WEBMAIL_URL:-https://webmail.kod.bzh}" "${ROOT}/deploy/scripts/health-check.sh"
 echo "Déploiement mail terminé"

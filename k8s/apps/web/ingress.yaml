@@ -9,9 +9,31 @@ spec:
   tls:
     - secretName: framm-web-tls
       hosts:
+        - kod.bzh
+        - www.kod.bzh
         - kod-digor.bzh
         - www.kod-digor.bzh
   rules:
+    - host: kod.bzh
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+    - host: www.kod.bzh
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
     - host: kod-digor.bzh
       http:
         paths:

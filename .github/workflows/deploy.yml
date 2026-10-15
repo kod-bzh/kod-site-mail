@@ -13,9 +13,9 @@ on:
 
 env:
   NODE_VERSION: "22"
-  PRIMARY_PLATFORM_DOMAIN: kod-digor.bzh
-  AUTH_URL: https://kod-digor.bzh
-  WEBMAIL_URL: https://webmail.kod-digor.bzh
+  PRIMARY_PLATFORM_DOMAIN: kod.bzh
+  AUTH_URL: https://kod.bzh
+  WEBMAIL_URL: https://webmail.kod.bzh
   REGISTRY: rg.fr-par.scw.cloud/framm-kod-digor
 
 jobs:
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://kod-digor.bzh
+      url: https://kod.bzh
     steps:
       - uses: actions/checkout@v4
 
@@ -103,16 +103,18 @@ jobs:
         run: ./deploy/scripts/ci-infra-health-checks.sh
 
   terraform-sync:
-    name: Terraform sync (TEM relay)
+    # DNS migrations require an inspected plan before infrastructure replacement.
+    name: Terraform sync (explicit opt-in)
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      needs.detect-changes.outputs.mail == 'true'
+      needs.detect-changes.outputs.mail == 'true' &&
+      vars.TERRAFORM_AUTO_APPLY == 'true'
     needs: [test-web, detect-changes]
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://kod-digor.bzh
+      url: https://kod.bzh
     steps:
       - uses: actions/checkout@v4
 
@@ -148,7 +150,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://kod-digor.bzh
+      url: https://kod.bzh
     steps:
       - uses: actions/checkout@v4
 
@@ -284,7 +286,7 @@ jobs:
             sed -i "/name: rg.fr-par.scw.cloud\/framm-kod-digor\/worker/,/newTag:/ s/newTag: .*/newTag: ${{ github.sha }}/" k8s/apps/web/kustomization.yaml
           fi
           git config user.name "framm-ci"
-          git config user.email "ci@kod-digor.bzh"
+          git config user.email "ci@kod.bzh"
           git add k8s/apps/web/kustomization.yaml
           git diff --cached --quiet || {
             git commit -m "chore: deploy ${GITHUB_SHA::8} [skip ci]"
