@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { sendBodySchema, validateAttachments } from "@/lib/mail/send-payload";
 import { hasScope, MAIL_SEND_SCOPE, verifyBearerApiKey } from "@/lib/api-keys";
 import { resolveV1ActorFromRequest } from "@/lib/api/v1-auth";
 import { sendAdminMail, verifyAdminMailToken } from "@/lib/mail/admin-send";
@@ -21,15 +21,6 @@ function extractBearerToken(authorization: string | null): string | null {
   if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
   return authorization.slice(7).trim();
 }
-
-const sendBodySchema = z.object({
-  from: z.string().min(3).max(320),
-  to: z.union([z.string().min(3).max(320), z.array(z.string().min(3).max(320)).min(1).max(50)]),
-  subject: z.string().min(1).max(998),
-  text: z.string().max(1_000_000).optional(),
-  html: z.string().max(2_000_000).optional(),
-  replyTo: z.string().max(320).optional(),
-});
 
 const ERROR_STATUS: Record<string, number> = {
   unauthorized: 401,
@@ -66,7 +57,10 @@ export async function POST(req: NextRequest) {
 
   const parsed = sendBodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_body", detail: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 400 });
+  }
+  try { validateAttachments(parsed.data.attachments); } catch (error) {
+    return NextResponse.json({ error: "invalid_attachments", detail: (error as Error).message }, { status: 400 });
   }
 
   const organizationId =

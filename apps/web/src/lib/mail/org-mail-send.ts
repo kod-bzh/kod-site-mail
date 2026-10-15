@@ -1,3 +1,4 @@
+import { validateAttachments, normalizeMailRecipients, type MailAttachment } from "./send-payload";
 import { prisma } from "@/lib/prisma";
 import { MAIL_USABLE_DOMAIN_STATUSES } from "@/lib/domain-status";
 import { sendViaStalwartMailbox } from "@/lib/mail/outbound-smtp";
@@ -13,11 +14,15 @@ export type OrgMailSendInput = {
   text?: string;
   html?: string;
   replyTo?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  attachments?: MailAttachment[];
 };
 
 export type OrgMailSendError =
   | "invalid_from"
   | "invalid_to"
+  | "invalid_attachments"
   | "missing_content"
   | "domain_not_in_org"
   | "domain_not_verified"
@@ -111,10 +116,13 @@ export async function sendOrgMail(
   const fromEmail = parseEmailAddress(input.from);
   if (!fromEmail) return { ok: false, error: "invalid_from" };
 
-  const toList = Array.isArray(input.to) ? input.to : [input.to];
-  const normalizedTo = toList.map((addr) => parseEmailAddress(addr)).filter(Boolean) as string[];
-  if (normalizedTo.length === 0 || normalizedTo.length !== toList.length) {
-    return { ok: false, error: "invalid_to" };
+  let recipients;
+  try { recipients = normalizeMailRecipients(input); } catch (error) {
+    return { ok: false, error: "invalid_to", detail: (error as Error).message };
+  }
+  if (!recipients.to.length) return { ok: false, error: "invalid_to" };
+  try { validateAttachments(input.attachments); } catch (error) {
+    return { ok: false, error: "invalid_attachments", detail: (error as Error).message };
   }
 
   if (!input.text?.trim() && !input.html?.trim()) {
@@ -126,7 +134,8 @@ export async function sendOrgMail(
 
   const mailPayload = {
     from: input.from.trim(),
-    to: normalizedTo,
+    ...recipients,
+    attachments: input.attachments,
     subject: input.subject.trim(),
     text: input.text,
     html: input.html,

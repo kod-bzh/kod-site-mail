@@ -161,3 +161,34 @@ Prérequis (une fois) : installer la [GitHub App Renovate](https://github.com/ap
 Ce projet est distribué sous licence [CeCILL v2.1](http://www.cecill.info/licences/Licence_CeCILL_V2.1-fr.html).
 
 Copyright © Association Kod Digor. Voir le fichier [LICENSE](LICENSE).
+
+## API d’envoi d’emails
+
+`POST https://kod.bzh/api/v1/mail/send`, avec `Authorization: Bearer $FRAMM_API_KEY` et `Content-Type: application/json`.
+
+JSON : `from`, `to`, `subject`, au moins `text` ou `html` ; `replyTo`, `cc`, `bcc` et `attachments` sont optionnels. `to`, `cc` et `bcc` acceptent une adresse ou un tableau de 1 à 50 adresses chacun. Les doublons sont supprimés sans tenir compte de la casse, priorité `to > cc > bcc`. Les copies visibles restent dans `Cc` ; le BCC est transmis uniquement dans l’enveloppe de livraison et ne figure pas dans les en-têtes ou le corps.
+
+Chaque pièce jointe est `{ filename, content, contentType? }` : nom non vide, contenu base64 canonique, type MIME par défaut `application/octet-stream`. Limite totale : **50 Mo (50 000 000 octets décodés)**. Un fichier invalide ou un dépassement annule tout l’envoi ; la réponse 400 contient `error` et `detail` avec l’index du fichier et la cause. Une erreur de téléversement renvoie 502 avec le fichier concerné. Aucune pièce jointe n’est ignorée silencieusement. Avec pièces jointes, le message est `multipart/mixed`, avec le corps en première partie ; texte et HTML ensemble sont regroupés en `multipart/alternative`.
+
+Exemple Bash (avec `jq`) :
+
+```bash
+jq -n --rawfile pdf <(base64 < document.pdf) '{
+  from: "noreply@votre-domaine.fr",
+  to: "destinataire@example.com",
+  cc: ["copie@example.com"],
+  subject: "Document",
+  text: "Voir le PDF joint.",
+  attachments: [{
+    filename: "document.pdf",
+    content: ($pdf | gsub("\\s"; "")),
+    contentType: "application/pdf"
+  }]
+}' > /tmp/framm-mail.json
+curl -X POST 'https://kod.bzh/api/v1/mail/send' \
+  -H "Authorization: Bearer $FRAMM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @/tmp/framm-mail.json
+```
+
+Succès inchangé : `{ "ok": true, "messageId": "..." }`. Le MCP `send_mail` accepte les mêmes champs ; `explain_mail_send_api` fournit le contrat et les exemples. Le domaine doit appartenir à l’organisation et une boîte Stalwart doit être disponible.

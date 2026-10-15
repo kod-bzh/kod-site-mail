@@ -1,3 +1,4 @@
+import { sendBodySchema } from "@/lib/mail/send-payload";
 import { z } from "zod";
 import {
   ALL_API_SCOPES,
@@ -357,6 +358,11 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         to: {
           oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
         },
+        cc: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" }, minItems: 1, maxItems: 50 }] },
+        bcc: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" }, minItems: 1, maxItems: 50 }] },
+        attachments: { type: "array", items: { type: "object", properties: {
+          filename: { type: "string", minLength: 1 }, content: { type: "string", description: "Base64 canonique ; total maximal 50 Mo décodés" }, contentType: { type: "string", default: "application/octet-stream" },
+        }, required: ["filename", "content"], additionalProperties: false } },
         subject: { type: "string" },
         text: { type: "string" },
         html: { type: "string" },
@@ -368,18 +374,8 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
     },
     handler: async (args, actor) => {
       if (!actorHasScope(actor, MAIL_SEND_SCOPE)) return fail("forbidden");
-      const parsed = z
-        .object({
-          from: z.string().min(3).max(320),
-          to: z.union([z.string().min(3), z.array(z.string().min(3)).min(1).max(50)]),
-          subject: z.string().min(1).max(998),
-          text: z.string().max(1_000_000).optional(),
-          html: z.string().max(2_000_000).optional(),
-          replyTo: z.string().max(320).optional(),
-          organizationSlug: orgSlugField,
-        })
-        .safeParse(args);
-      if (!parsed.success) return fail("invalid_arguments");
+      const parsed = sendBodySchema.extend({ organizationSlug: orgSlugField }).safeParse(args);
+      if (!parsed.success) return fail("invalid_arguments", { detail: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
       const org = await requireOrg(actor, {
         organizationSlug: parsed.data.organizationSlug,
         fqdn: parsed.data.from.split("@")[1],
@@ -393,6 +389,9 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         text: parsed.data.text,
         html: parsed.data.html,
         replyTo: parsed.data.replyTo,
+        cc: parsed.data.cc,
+        bcc: parsed.data.bcc,
+        attachments: parsed.data.attachments,
       });
       if (!result.ok) return fail(result.error, { detail: result.detail });
       return ok({ ok: true, messageId: result.messageId });

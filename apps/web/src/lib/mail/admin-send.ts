@@ -1,3 +1,4 @@
+import { attachmentSchema } from "./send-payload";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getPlatformEmailDomains } from "@/lib/platform-domains";
@@ -78,6 +79,7 @@ export const adminSendMailSchema = z
     subject: z.string().min(1).max(998),
     text: z.string().optional(),
     html: z.string().optional(),
+    attachments: z.array(attachmentSchema).optional(),
     cc: recipients.optional(),
     bcc: recipients.optional(),
     replyTo: z.string().email().optional(),
@@ -126,6 +128,7 @@ export async function sendAdminMail(
     subject: input.subject,
     text: input.text,
     html: input.html,
+    attachments: input.attachments,
     cc: input.cc,
     bcc: input.bcc,
     replyTo: input.replyTo,

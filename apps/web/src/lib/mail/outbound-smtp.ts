@@ -1,3 +1,4 @@
+import type { MailAttachment } from "./send-payload";
 import { sendMailViaStalwartJmap } from "@/lib/stalwart/client";
 
 export type OutboundMailPayload = {
@@ -9,6 +10,7 @@ export type OutboundMailPayload = {
   cc?: string | string[];
   bcc?: string | string[];
   replyTo?: string;
+  attachments?: MailAttachment[];
 };
 
 /** Envoi via JMAP Stalwart (HTTPS). Jamais TEM Scaleway, jamais SMTP 465 (fermé depuis K8s). */
@@ -26,5 +28,6 @@ export async function sendViaStalwartMailbox(
     cc: payload.cc,
     bcc: payload.bcc,
     replyTo: payload.replyTo,
+    attachments: payload.attachments,
   });
 }

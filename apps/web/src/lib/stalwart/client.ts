@@ -1,3 +1,4 @@
+import { decodeAttachments, normalizeMailRecipients, type MailAttachment } from "@/lib/mail/send-payload";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -956,13 +957,6 @@ function jmapSendError(res: unknown): string | null {
   return null;
 }
 
-function emailsFromPayload(value: string | string[] | undefined): string[] {
-  if (!value) return [];
-  return (Array.isArray(value) ? value : [value])
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function parseMailFrom(raw: string): { email: string; name?: string } {
   const trimmed = raw.trim();
   const angle = trimmed.match(/<([^>]+)>/);
@@ -984,6 +978,7 @@ export async function sendMailViaStalwartJmap(input: {
   cc?: string | string[];
   bcc?: string | string[];
   replyTo?: string;
+  attachments?: MailAttachment[];
 }): Promise<
   { ok: true; messageId: string; via: string } | { ok: false; code: "smtp_not_configured" | "send_failed"; detail?: string }
 > {
@@ -992,7 +987,15 @@ export async function sendMailViaStalwartJmap(input: {
   }
 
   const { email: fromEmail, name: fromName } = parseMailFrom(input.from);
-  const to = emailsFromPayload(input.to);
+  let recipients;
+  let files;
+  try {
+    recipients = normalizeMailRecipients(input);
+    files = decodeAttachments(input.attachments);
+  } catch (error) {
+    return { ok: false, code: "send_failed", detail: (error as Error).message };
+  }
+  const { to, cc, bcc } = recipients;
   if (!fromEmail || to.length === 0) {
     return { ok: false, code: "send_failed", detail: "From ou To invalide" };
   }
@@ -1045,10 +1048,8 @@ export async function sendMailViaStalwartJmap(input: {
     subject: input.subject,
     keywords: { $seen: true, $draft: true },
   };
-  const cc = emailsFromPayload(input.cc);
-  const bcc = emailsFromPayload(input.bcc);
   if (cc.length) emailCreate.cc = cc.map((email) => ({ email }));
-  if (bcc.length) emailCreate.bcc = bcc.map((email) => ({ email }));
+  // Bcc exists only in the SMTP envelope, never in the stored MIME headers.
   if (input.replyTo) emailCreate.replyTo = [{ email: input.replyTo }];
   if (input.html?.trim()) {
     emailCreate.bodyValues = {
@@ -1062,6 +1063,43 @@ export async function sendMailViaStalwartJmap(input: {
     emailCreate.textBody = [{ partId: "1", type: "text/plain" }];
   }
 
+  if (files.length) {
+    try {
+      const sessionResponse = await fetch(`${getStalwartJmapUrl()}/.well-known/jmap`, {
+        headers: { Authorization: `Bearer ${STALWART_API_KEY}` }, signal: AbortSignal.timeout(15_000),
+      });
+      if (!sessionResponse.ok) throw new Error(`Session JMAP HTTP ${sessionResponse.status}`);
+      const session = await sessionResponse.json() as { uploadUrl?: string };
+      if (!session.uploadUrl) throw new Error("URL de téléversement JMAP absente");
+      const attachmentParts = [];
+      for (const [index, file] of files.entries()) {
+        try {
+          const upload = await fetch(session.uploadUrl.replace("{accountId}", encodeURIComponent(input.accountId)), {
+            method: "POST", headers: { Authorization: `Bearer ${STALWART_API_KEY}`, "Content-Type": file.contentType },
+            body: new Uint8Array(file.content), signal: AbortSignal.timeout(30_000),
+          });
+          if (!upload.ok) throw new Error(`HTTP ${upload.status}`);
+          const blob = await upload.json() as { blobId?: string };
+          if (!blob.blobId) throw new Error("blobId absent");
+          attachmentParts.push({ blobId: blob.blobId, type: file.contentType, name: file.filename, disposition: "attachment" });
+        } catch (error) {
+          throw new Error(`attachments[${index}] (${file.filename}) : ${(error as Error).message}`);
+        }
+      }
+      const text = emailCreate.textBody as Record<string, unknown>[] | undefined;
+      const html = emailCreate.htmlBody as Record<string, unknown>[] | undefined;
+      const bodyParts = [...(text ?? []), ...(html ?? [])];
+      emailCreate.bodyStructure = { type: "multipart/mixed", subParts: [
+        bodyParts.length > 1 ? { type: "multipart/alternative", subParts: bodyParts } : bodyParts[0],
+        ...attachmentParts,
+      ] };
+      delete emailCreate.textBody;
+      delete emailCreate.htmlBody;
+    } catch (error) {
+      return { ok: false, code: "send_failed", detail: (error as Error).message };
+    }
+  }
+
   const sendRes = await jmapCall(
     [
       ["Email/set", { accountId: input.accountId, create: { [draftKey]: emailCreate } }, "e1"],
@@ -1073,6 +1111,10 @@ export async function sendMailViaStalwartJmap(input: {
             s1: {
               emailId: `#${draftKey}`,
               identityId,
+              envelope: {
+                mailFrom: { email: fromEmail },
+                rcptTo: [...to, ...cc, ...bcc].map(email => ({ email })),
+              },
             },
           },
         },
@@ -1093,15 +1135,10 @@ export async function sendMailViaStalwartJmap(input: {
       created?: Record<string, { id?: string }>;
     }
   )?.created?.s1?.id;
-  const createdEmail = (
-    asJmapResponses(sendRes).find((row) => row[0] === "Email/set")?.[1] as {
-      created?: Record<string, { id?: string }>;
-    }
-  )?.created?.[draftKey]?.id;
-
+  if (!createdSub) return { ok: false, code: "send_failed", detail: "Stalwart n’a pas confirmé la soumission du message." };
   return {
     ok: true,
-    messageId: createdSub || createdEmail || "unknown",
+    messageId: createdSub,
     via: "stalwart-jmap",
   };
 }
