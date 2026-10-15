@@ -19,6 +19,8 @@ export type DnsCheckRow = {
   ok: boolean;
   found: string;
   issue: DnsLookupIssue;
+  required?: boolean;
+  detail?: string;
   mxRecords?: MxRecordFinding[];
   txtRecords?: TxtRecordFinding[];
 };
@@ -27,6 +29,9 @@ export type DnsVerifyResult = {
   verified: boolean;
   domainExists: boolean;
   results: DnsCheckRow[];
+  checkedAt?: string;
+  warnings?: string[];
+  sendingAllowed?: boolean;
 };
 
 export function getPlatformMailHost() {
@@ -86,6 +91,7 @@ export function expectedRecords(fqdn: string, mailHost?: string): DnsRecord[] {
   return [
     { type: "MX", name: fqdn, value: `10 ${mailTarget}` },
     { type: "TXT", name: fqdn, value: getExpectedSpfValue(platformHost) },
+    { type: "TXT", name: `_dmarc.${fqdn}`, value: "v=DMARC1; p=none" },
     { type: "CNAME", name: `autoconfig.${fqdn}`, value: mailTarget },
     { type: "CNAME", name: `autodiscover.${fqdn}`, value: mailTarget },
     {

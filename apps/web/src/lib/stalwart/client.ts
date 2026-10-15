@@ -188,6 +188,8 @@ export async function createDomain(fqdn: string) {
         create: {
           [id]: {
             name: fqdn,
+            dkimManagement: { "@type": "Automatic" },
+            dnsManagement: { "@type": "Manual" },
           },
         },
       },
@@ -1131,4 +1133,38 @@ export function getWebmailExternalUrl(): string {
 /** JMAP same-origin Bulwark (nginx webmail → Stalwart). Évite CORS navigateur. */
 export function getBulwarkJmapUrl(): string {
   return getWebmailExternalUrl();
+}
+
+/** Public DKIM material only; private signing keys never leave Stalwart. */
+export async function getDomainDkimRecords(fqdn: string): Promise<{
+  records: { type: string; name: string; value: string }[];
+  available: boolean;
+  signingEnabled: boolean | null;
+}> {
+  const domain = await resolveStalwartDomainId(fqdn, null);
+  if (!domain.id) return { records: [], available: false, signingEnabled: null };
+  const query = await jmapCall([["x:DkimSignature/query", { filter: { domainId: domain.id } }, "q"]]);
+  if (isStalwartFailure(query)) return { records: [], available: false, signingEnabled: null };
+  const ids = extractJmapQueryIds(query);
+  if (!ids.length) return { records: [], available: false, signingEnabled: null };
+  const result = await jmapCall([["x:DkimSignature/get", {
+    ids, properties: ["domainId", "selector", "publicKey", "stage", "@type"],
+  }, "g"], ["x:SenderAuth/get", { ids: ["singleton"], properties: ["dkimSignDomain"] }, "signing"]]);
+  if (isStalwartFailure(result)) return { records: [], available: false, signingEnabled: null };
+  const body = firstMethodResponse(result)?.[1] as { list?: {
+    domainId: string; selector: string; publicKey: string; stage: string; "@type": string;
+  }[] } | undefined;
+  const records = (body?.list ?? []).filter(key =>
+    key.domainId === domain.id && key.stage === "active" && key.publicKey &&
+    ["Dkim1RsaSha256", "Dkim1Ed25519Sha256"].includes(key["@type"])
+  ).map(key => ({
+    type: "TXT", name: `${key.selector}._domainkey.${fqdn}`,
+    value: `v=DKIM1; k=${key["@type"] === "Dkim1RsaSha256" ? "rsa" : "ed25519"}; p=${key.publicKey}`,
+  }));
+  const responses = (result as { methodResponses?: unknown[][] }).methodResponses;
+  const policy = (responses?.[1]?.[1] as { list?: { dkimSignDomain?: unknown }[] } | undefined)?.list?.[0]?.dkimSignDomain;
+  const expected = { match: { "0": { if: "is_local_domain(sender_domain) && !is_empty(authenticated_as)", then: "sender_domain" } }, else: "false" };
+  const signingEnabled = policy === "sender_domain" || JSON.stringify(policy) === JSON.stringify(expected)
+    ? true : policy === false || policy === "false" ? false : null;
+  return { records, available: records.some(record => record.value.includes("k=rsa")), signingEnabled };
 }

@@ -1,6 +1,7 @@
 import { DOMAIN_READ_SCOPE, DOMAIN_WRITE_SCOPE } from "@/lib/api-keys";
 import { resolveActorOrganizationId } from "@/lib/api/v1-auth";
 import { jsonOk, readOrgSlug, requireV1Actor, v1Error } from "@/lib/api/v1-http";
+import { verifyDomainDns } from "@/lib/dns/verify";
 import { getOrganizationDomain } from "@/lib/domains/manage";
 
 export const dynamic = "force-dynamic";
@@ -19,5 +20,5 @@ export async function GET(
   if (!org.ok) return v1Error(org.error);
   const domain = await getOrganizationDomain(org.organizationId, fqdn);
   if (!domain) return v1Error("domain_not_found");
-  return jsonOk({ domain });
+  return jsonOk({ domain, deliverability: await verifyDomainDns(domain.fqdn) });
 }

@@ -77,11 +77,11 @@ export function DomainsList({
             <p className="text-sm text-zinc-600">
               {domain.isVerified ? labels.verified : labels.pending}
             </p>
-            {!domain.isVerified && !domain.isPlatform && (
+            {!domain.isVerified && (
               <p className="text-sm text-amber-800">{labels.usableWhilePending}</p>
             )}
 
-            {!domain.isVerified && !domain.isPlatform && domain.records.length > 0 && (
+            {domain.records.length > 0 && (
               <div className="space-y-3">
                 <div>
                   <h3 className="text-sm font-medium text-zinc-900">{labels.records}</h3>
@@ -100,7 +100,7 @@ export function DomainsList({
             )}
 
             <div className="flex flex-wrap items-center gap-3">
-              {!domain.isVerified && !domain.isPlatform && (
+              {domain.records.length > 0 && (
                 <VerifyDomainForm domainId={domain.id} />
               )}
               {!domain.isPlatform && (

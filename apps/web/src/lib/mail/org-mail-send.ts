@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isDnsVerifiedDomainStatus } from "@/lib/domain-status";
+import { MAIL_USABLE_DOMAIN_STATUSES } from "@/lib/domain-status";
 import { sendViaStalwartMailbox } from "@/lib/mail/outbound-smtp";
 import { resolveStalwartAccountId } from "@/lib/stalwart/client";
 
@@ -98,7 +98,7 @@ export async function validateFromDomainForOrg(
   });
 
   if (!domain) return "domain_not_in_org";
-  if (!isDnsVerifiedDomainStatus(domain.status)) return "domain_not_verified";
+  if (!MAIL_USABLE_DOMAIN_STATUSES.includes(domain.status)) return "domain_not_verified";
   return null;
 }
 

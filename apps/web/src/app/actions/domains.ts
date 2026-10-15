@@ -36,7 +36,7 @@ export async function addDomainAction(
   }
 
   revalidatePath("/dashboard/domains");
-  if (!result.stalwartSynced) {
+  if (!result.stalwartSynced || !result.sendingAllowed) {
     return { ok: false, message: "stalwartSyncFailed", detail: fqdn, warning: true };
   }
   return { ok: true, message: "addSuccess", detail: fqdn };

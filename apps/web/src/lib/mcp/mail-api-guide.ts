@@ -32,8 +32,8 @@ export function getMailSendApiGuide() {
       neverUse: "Ne pas utiliser une clé Resend (re_…). Framm n'accepte que framm_… ou le jeton admin.",
     },
     prerequisites: [
-      "Domaine ajouté (add_domain) et DNS publiés (get_dns_records).",
-      "DNS vérifiés (verify_domain) — sinon 403 domain_not_verified.",
+      "Domaine ajouté (add_domain) : noreply est préparé automatiquement. Lire sendingAllowed et notice.",
+      "Envoi autorisé même avec DNS en attente. Publier SPF, DKIM et DMARC fournis, puis verify_domain pour réduire les refus et le spam ; ne pas changer les MX si la réception reste ailleurs.",
       "Boîte existante pour le From (ensure_mailbox, ex. noreply@domaine).",
       "Clé API stockée côté app (env FRAMM_API_KEY), jamais dans le front public.",
     ],
@@ -67,7 +67,7 @@ export function getMailSendApiGuide() {
       "401 unauthorized": "Jeton manquant ou invalide",
       "403 forbidden": "Clé sans scope mail:send",
       "403 domain_not_in_org": "Le From n'appartient pas à l'organisation de la clé",
-      "403 domain_not_verified": "DNS du domaine From pas encore vérifiés",
+      "403 domain_not_verified": "Domaine non utilisable (le DNS en attente ne bloque pas l’envoi)",
       "400 invalid_body | invalid_from | invalid_to | missing_content": "Payload incomplet ou invalide",
       "503 smtp_not_configured": "Aucune boîte Stalwart pour cet expéditeur — appeler ensure_mailbox",
       "502 send_failed": "Stalwart a refusé l'envoi (detail dans la réponse)",
@@ -121,7 +121,7 @@ export function getMailSendApiGuide() {
       FRAMM_API_KEY: "framm_… (sortie de get_api_key, à stocker en secret serveur)",
     },
     nextSteps: [
-      "Si le domaine n'existe pas : add_domain puis publier get_dns_records, verify_domain, ensure_mailbox, get_api_key.",
+      "Si le domaine n'existe pas : add_domain prépare noreply. Lire sendingAllowed ; get_api_key permet ensuite d’envoyer. Publier get_dns_records puis verify_domain pour améliorer la délivrabilité.",
       "Dans le code métier, remplacer le SDK Resend par le fetch ci-dessus. Ne plus appeler smtp.resend.com.",
     ],
   };
@@ -135,10 +135,10 @@ export function getMailSendApiInstructions(): string {
     "MCP (Cursor, Claude) : OAuth 2.1 PKCE + enregistrement dynamique, URL https://…/api/mcp — pas de clé à coller.",
     "API applicative : Authorization: Bearer framm_… (scope mail:send) ou ADMIN_MAIL_TOKEN.",
     'JSON : { "from", "to", "subject", "text"?, "html"?, "replyTo"? }. Au moins text ou html.',
-    "Succès : { ok: true, messageId }. From = adresse d'un domaine vérifié + boîte Stalwart.",
+    "Succès : { ok: true, messageId }. From = adresse d'un domaine ajouté + boîte Stalwart ; DNS non bloquant.",
     "Pas d'attachments/cc/bcc/templates Resend sur cette API.",
     "Pour le guide complet (mapping Resend, curl, fetch, erreurs) : appeler explain_mail_send_api.",
-    "Provisionnement : add_domain → get_dns_records → verify_domain → ensure_mailbox → get_api_key → send_mail.",
+    "Provisionnement : add_domain prépare noreply → get_api_key → send_mail immédiatement. En parallèle : get_dns_records → publication SPF/DKIM/DMARC → verify_domain. Les MX restent inchangés pour un usage envoi uniquement.",
     "Jeton admin : passer organizationSlug (ou header X-Framm-Organization).",
   ].join(" ");
 }

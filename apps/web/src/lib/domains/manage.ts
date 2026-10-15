@@ -2,12 +2,12 @@ import { domainToASCII } from "node:url";
 import { DomainStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  expectedRecords,
   formatDnsHostLabel,
   getPlatformMailHost,
-  isPlatformDomain,
   type DnsRecord,
 } from "@/lib/dns/dns-records";
+import { domainDnsRecords } from "@/lib/dns/domain-records";
+import { DELIVERABILITY_NOTICE } from "@/lib/dns/deliverability";
 import { verifyDomainDns, type DnsVerifyResult } from "@/lib/dns/verify";
 import {
   createDomain as createStalwartDomain,
@@ -33,8 +33,9 @@ export function normalizeFqdn(raw: string): string | null {
   return fqdn;
 }
 
-export function registrarDnsRecords(fqdn: string, platformHost?: string): RegistrarDnsRecord[] {
-  return expectedRecords(fqdn, platformHost).map((record) => ({
+export async function registrarDnsRecords(fqdn: string, platformHost?: string): Promise<RegistrarDnsRecord[]> {
+  const { records } = await domainDnsRecords(fqdn, platformHost);
+  return records.map((record) => ({
     ...record,
     host: formatDnsHostLabel(record.name, fqdn),
   }));
@@ -81,13 +82,14 @@ async function syncStalwartDomain(
 }
 
 export async function previewDomainDns(fqdnRaw: string): Promise<
-  | { ok: true; fqdn: string; records: RegistrarDnsRecord[]; mailHost: string }
+  | { ok: true; fqdn: string; records: RegistrarDnsRecord[]; mailHost: string; signingConfigured: boolean }
   | { ok: false; error: "invalid_fqdn" }
 > {
   const fqdn = normalizeFqdn(fqdnRaw);
   if (!fqdn) return { ok: false, error: "invalid_fqdn" };
   const mailHost = getPlatformMailHost();
-  return { ok: true, fqdn, records: registrarDnsRecords(fqdn, mailHost), mailHost };
+  const configuration = await domainDnsRecords(fqdn, mailHost);
+  return { ok: true, fqdn, records: configuration.records.map(record => ({ ...record, host: formatDnsHostLabel(record.name, fqdn) })), mailHost, signingConfigured: configuration.signingConfigured };
 }
 
 export async function listOrganizationDomains(organizationId: string): Promise<DomainSummary[]> {
@@ -135,6 +137,9 @@ export async function addDomainForOrg(
       records: RegistrarDnsRecord[];
       verified: boolean;
       stalwartSynced: boolean;
+      sendingAllowed: boolean;
+      sender: string;
+      notice: string;
     }
   | { ok: false; error: "invalid_fqdn" | "domain_taken" }
 > {
@@ -156,23 +161,26 @@ export async function addDomainForOrg(
   }
 
   const platformHost = getPlatformMailHost();
-  const records = registrarDnsRecords(fqdn, platformHost);
-
   if (existing) {
+    const stalwart = await syncStalwartDomain(fqdn, existing.stalwartDomainId);
+    const check = await verifyDomainDns(fqdn, platformHost);
+    const records = await registrarDnsRecords(fqdn, platformHost);
+    const updated = await prisma.domain.update({
+      where: { id: existing.id },
+      data: { status: check.verified ? DomainStatus.VERIFIED : DomainStatus.PENDING_DNS,
+        ...(stalwart.id ? { stalwartDomainId: stalwart.id } : {}), dnsRecordsJson: records },
+    });
     return {
-      ok: true,
-      created: false,
-      domain: toSummary(existing),
-      records,
-      verified: existing.status === "VERIFIED" || existing.status === "ACTIVE",
-      stalwartSynced: Boolean(existing.stalwartDomainId),
+      ok: true, created: false, domain: toSummary(updated), records,
+      ...(await prepareSender(organizationId, fqdn)),
+      verified: check.verified, stalwartSynced: Boolean(stalwart.id),
     };
   }
 
   const stalwart = await syncStalwartDomain(fqdn, null);
   const dnsCheck = await verifyDomainDns(fqdn, platformHost);
   const status =
-    isPlatformDomain(fqdn) || dnsCheck.verified
+    dnsCheck.verified
       ? DomainStatus.VERIFIED
       : DomainStatus.PENDING_DNS;
 
@@ -182,7 +190,7 @@ export async function addDomainForOrg(
       fqdn,
       stalwartDomainId: stalwart.id,
       status,
-      dnsRecordsJson: expectedRecords(fqdn, platformHost),
+      dnsRecordsJson: await registrarDnsRecords(fqdn, platformHost),
     },
     select: {
       id: true,
@@ -197,7 +205,8 @@ export async function addDomainForOrg(
     ok: true,
     created: true,
     domain: toSummary(domain),
-    records,
+    records: await registrarDnsRecords(fqdn, platformHost),
+    ...(await prepareSender(organizationId, fqdn)),
     verified: domain.status === "VERIFIED" || domain.status === "ACTIVE",
     stalwartSynced: Boolean(domain.stalwartDomainId),
   };
@@ -231,7 +240,7 @@ export async function verifyDomainForOrg(
     where: { id: domain.id },
     data: {
       status,
-      dnsRecordsJson: expectedRecords(fqdn, platformHost),
+      dnsRecordsJson: await registrarDnsRecords(fqdn, platformHost),
     },
     select: {
       id: true,
@@ -245,7 +254,19 @@ export async function verifyDomainForOrg(
   return {
     ok: true,
     domain: toSummary(updated),
-    records: registrarDnsRecords(fqdn, platformHost),
+    records: await registrarDnsRecords(fqdn, platformHost),
     check,
+  };
+}
+
+async function prepareSender(organizationId: string, fqdn: string) {
+  const { createMailboxForOrg } = await import("@/lib/mail/create-mailbox");
+  const mailbox = await createMailboxForOrg({ organizationId, fqdn, localPart: "noreply" });
+  return {
+    sendingAllowed: mailbox.ok,
+    sender: `noreply@${fqdn}`,
+    notice: mailbox.ok
+      ? `Domaine ajouté. Vous pouvez envoyer dès maintenant depuis noreply@${fqdn} avec une clé API autorisée. ${DELIVERABILITY_NOTICE}`
+      : `Domaine ajouté ; la préparation de noreply@${fqdn} reste à terminer (${mailbox.error}). ${DELIVERABILITY_NOTICE}`,
   };
 }

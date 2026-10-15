@@ -22,6 +22,7 @@ export async function POST(
   return jsonOk({
     domain: result.domain,
     verified: result.check.verified,
+    deliverability: result.check,
     domainExists: result.check.domainExists,
     records: result.records,
     checks: result.check.results,

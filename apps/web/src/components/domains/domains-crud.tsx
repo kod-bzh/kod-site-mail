@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { ScrollText } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { deleteDomainAction, forceApproveDomainAction, verifyDomainAction } from "@/app/actions/domains";
+import { deleteDomainAction, verifyDomainAction } from "@/app/actions/domains";
 import { CrudListCard } from "@/components/layout/crud-list-card";
 import { CrudPageHeader } from "@/components/layout/crud-page-header";
 import { AddDomainForm } from "@/components/domains/add-domain-form";
@@ -13,7 +13,6 @@ import { DeleteDomainForm } from "@/components/domains/delete-domain-form";
 import { DnsRecordsTable } from "@/components/domains/dns-records-table";
 import { DnsStatusPanel } from "@/components/domains/dns-status-panel";
 import { VerifyDomainForm } from "@/components/domains/verify-domain-form";
-import { ForceApproveDomainForm } from "@/components/domains/force-approve-domain-form";
 import { CrudAddButton } from "@/components/ui/crud-add-button";
 import {
   CrudRowActions,
@@ -68,10 +67,6 @@ export function DomainsCrud({
   const [pendingDnsFqdn, setPendingDnsFqdn] = useState<string | null>(null);
   const [deleteState, deleteAction] = useActionState(deleteDomainAction, INITIAL_ACTION_RESULT);
   const [verifyState, verifyAction] = useActionState(verifyDomainAction, INITIAL_ACTION_RESULT);
-  const [forceApproveState, forceApproveAction] = useActionState(
-    forceApproveDomainAction,
-    INITIAL_ACTION_RESULT
-  );
 
   const dnsDrawerDomain =
     (dnsTargetId ? domains.find((d) => d.id === dnsTargetId) : null) ??
@@ -120,7 +115,7 @@ export function DomainsCrud({
       cellClassName: CRUD_ACTIONS_CELL_CLASS,
       cell: (row: DomainCardData) => (
         <CrudRowActions>
-          {!row.isVerified && !row.isPlatform && row.records.length > 0 ? (
+          {row.records.length > 0 ? (
             <Button
               type="button"
               variant="ghost"
@@ -135,7 +130,7 @@ export function DomainsCrud({
               <ScrollText className="size-4" aria-hidden />
             </Button>
           ) : null}
-          {!row.isVerified && !row.isPlatform ? (
+          {row.records.length > 0 ? (
             <VerifyDomainForm
               domainId={row.id}
               fqdn={row.fqdn}
@@ -188,12 +183,10 @@ export function DomainsCrud({
             <p className="text-sm text-zinc-600">
               {dnsDrawerDomain.isVerified ? labels.verified : labels.pending}
             </p>
-            {!dnsDrawerDomain.isVerified && !dnsDrawerDomain.isPlatform ? (
+            {!dnsDrawerDomain.isVerified ? (
               <p className="text-sm text-amber-800">{labels.usableWhilePending}</p>
             ) : null}
-            {!dnsDrawerDomain.isVerified &&
-            !dnsDrawerDomain.isPlatform &&
-            dnsDrawerDomain.records.length > 0 ? (
+            {dnsDrawerDomain.records.length > 0 ? (
               <>
                 <div>
                   <h3 className="text-sm font-medium text-zinc-900">{labels.records}</h3>
@@ -209,12 +202,6 @@ export function DomainsCrud({
                   <DnsStatusPanel check={dnsDrawerDomain.dnsCheck} mailHost={mailHost} />
                 ) : null}
                 <VerifyDomainForm domainId={dnsDrawerDomain.id} />
-                <ForceApproveDomainForm
-                  domainId={dnsDrawerDomain.id}
-                  fqdn={dnsDrawerDomain.fqdn}
-                  action={forceApproveAction}
-                  state={forceApproveState}
-                />
               </>
             ) : null}
           </div>
@@ -223,7 +210,6 @@ export function DomainsCrud({
 
       <FormFeedback state={deleteState} namespace="domains" paramKey="domain" />
       <FormFeedback state={verifyState} namespace="domains" paramKey="domain" />
-      <FormFeedback state={forceApproveState} namespace="domains" paramKey="domain" />
 
       <CrudListCard>
         <DataTable

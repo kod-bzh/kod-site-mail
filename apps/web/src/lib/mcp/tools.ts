@@ -24,6 +24,7 @@ import {
 import { createMailboxForOrg } from "@/lib/mail/create-mailbox";
 import { sendOrgMail } from "@/lib/mail/org-mail-send";
 import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
+import { verifyDomainDns } from "@/lib/dns/verify";
 import { prisma } from "@/lib/prisma";
 
 export type McpToolResult = {
@@ -76,7 +77,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
   {
     name: "get_dns_records",
     description:
-      "Retourne les enregistrements DNS à ajouter chez le registrar pour héberger le mail sur Framm/Stalwart. N'écrit rien.",
+      "Retourne SPF, DKIM et DMARC à publier pour améliorer la délivrabilité. MX et autoconfiguration sont optionnels pour la réception. Ajouter le domaine au préalable pour obtenir les clés DKIM exactes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -94,8 +95,10 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         fqdn: result.fqdn,
         mailHost: result.mailHost,
         records: result.records,
+        signingConfigured: result.signingConfigured,
+        warning: result.signingConfigured ? null : "Clés DKIM indisponibles : appeler add_domain puis relancer ce contrôle. Ne pas considérer cette liste comme complète.",
         instruction:
-          "Ajouter ces enregistrements chez le registrar, attendre la propagation, puis appeler verify_domain.",
+          "Publier SPF, DKIM et DMARC ; fusionner le SPF existant, conserver une politique DMARC plus stricte. Garder les MX existants si la réception reste ailleurs. Relancer verify_domain après propagation. L’envoi peut fonctionner avant validation DNS, sans garantie de réception.",
       });
     },
   },
@@ -129,7 +132,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       return ok({
         ...result,
         instruction:
-          "Publier records chez le registrar (hôte relatif). Puis verify_domain. Ensuite get_api_key et send_mail.",
+          "Lire notice et sendingAllowed. Si true, get_api_key puis send_mail depuis sender sont disponibles immédiatement. Publier les DNS d’authentification fournis puis verify_domain. Ne pas remplacer les MX pour un usage envoi uniquement.",
       });
     },
   },
@@ -156,7 +159,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
   },
   {
     name: "get_domain_status",
-    description: "Statut Framm d'un domaine (PENDING_DNS, VERIFIED, ACTIVE) sans relancer la vérif DNS.",
+    description: "Statut et diagnostic en direct SPF, DKIM, DMARC et reverse DNS. L’envoi reste autorisé pendant la configuration DNS.",
     inputSchema: {
       type: "object",
       properties: {
@@ -179,13 +182,13 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       if (!org.ok) return fail(org.error);
       const domain = await getOrganizationDomain(org.organizationId, parsed.data.fqdn);
       if (!domain) return fail("domain_not_found");
-      return ok({ domain });
+      return ok({ domain, deliverability: await verifyDomainDns(domain.fqdn) });
     },
   },
   {
     name: "verify_domain",
     description:
-      "Vérifie les DNS publics du domaine (MX, SPF, autoconfig…) et met à jour le statut Framm.",
+      "Vérifie SPF (IP, includes, limite DNS), les clés DKIM actives, DMARC et reverse DNS. MX/autoconfiguration sont informatifs. Ne bloque pas l’envoi.",
     inputSchema: {
       type: "object",
       properties: {
@@ -209,6 +212,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       return ok({
         domain: result.domain,
         verified: result.check.verified,
+        deliverability: result.check,
         domainExists: result.check.domainExists,
         records: result.records,
         checks: result.check.results.map((row) => ({
@@ -345,7 +349,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
   {
     name: "send_mail",
     description:
-      "Envoie un email via l'API Framm/Stalwart (remplace Resend). From d'un domaine vérifié + boîte existante. Pour le contrat HTTP à copier dans une app, appeler explain_mail_send_api.",
+      "Envoie un email via l'API Framm/Stalwart (remplace Resend). From d'un domaine ajouté + boîte existante. DNS non bloquant ; vérifier la délivrabilité avec verify_domain. Pour le contrat HTTP à copier dans une app, appeler explain_mail_send_api.",
     inputSchema: {
       type: "object",
       properties: {

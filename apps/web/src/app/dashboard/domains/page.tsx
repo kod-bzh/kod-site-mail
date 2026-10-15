@@ -5,10 +5,10 @@ import { DomainsCrud } from "@/components/domains/domains-crud";
 import { getT } from "@/i18n/t";
 import { StalwartStatusBanner } from "@/components/stalwart/status-banner";
 import {
-  expectedRecords,
   getPlatformMailHost,
   isPlatformDomain,
 } from "@/lib/dns/dns-records";
+import { registrarDnsRecords } from "@/lib/domains/manage";
 import { verifyDomainDns } from "@/lib/dns/verify";
 
 export const dynamic = "force-dynamic";
@@ -27,13 +27,10 @@ export default async function DomainsPage() {
 
   const domainCards = await Promise.all(
     domains.map(async (domain) => {
-      const isVerified = domain.status === "VERIFIED" || domain.status === "ACTIVE";
       const isPlatform = isPlatformDomain(domain.fqdn);
-      const records = expectedRecords(domain.fqdn, platformHost);
-      const dnsCheck =
-        !isVerified && !isPlatform
-          ? await verifyDomainDns(domain.fqdn, platformHost)
-          : null;
+      const records = await registrarDnsRecords(domain.fqdn, platformHost);
+      const dnsCheck = await verifyDomainDns(domain.fqdn, platformHost);
+      const isVerified = dnsCheck.verified;
 
       return {
         id: domain.id,
