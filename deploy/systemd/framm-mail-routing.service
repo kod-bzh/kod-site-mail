@@ -1,0 +1,18 @@
+[Unit]
+Description=Preserve external MX delivery for KOD sender domains
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/framm/deploy/scripts/ensure-mail-routing.py
+TimeoutStartSec=180
+UMask=0077
+StateDirectory=framm-mail-routing
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=

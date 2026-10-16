@@ -4,7 +4,8 @@ export function recipientState(status: RecipientDelivery): RecipientState {
   if (status.delivered === "no") return "FAILED";
   if (status.delivered === "yes") return "DELIVERED";
   if (status.delivered === "queued") return "QUEUED";
-  if (status.delivered === "unknown" && /^2\d\d\b/.test(status.smtpReply ?? "")) return "ACCEPTED";
+  // Stalwart can retain its synthetic submission reply after the transport
+  // queue entry disappears. No reply with delivered=unknown proves delivery.
   return "UNKNOWN";
 }
 export function permanentAddressFailure(status: RecipientDelivery): boolean {

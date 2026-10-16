@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import { aggregateDelivery, permanentAddressFailure, recipientState } from "./delivery-status";
 describe("honest delivery observations", () => {
   it("does not turn SMTP acceptance into inbox delivery", () => {
-    expect(recipientState({ delivered: "unknown", smtpReply: "250 2.0.0 OK" })).toBe("ACCEPTED");
+    expect(recipientState({ delivered: "unknown", smtpReply: "250 2.0.0 OK" })).toBe("UNKNOWN");
     expect(recipientState({ delivered: "unknown" })).toBe("UNKNOWN");
     expect(aggregateDelivery({}, ["a@example.org"])).toBe("UNKNOWN");
+  });
+  it("never mistakes Stalwart's synthetic queue acknowledgement for remote acceptance", () => {
+    const submitted = { delivered: "unknown", smtpReply: "250 2.1.5 Queued" };
+    expect(recipientState(submitted)).toBe("UNKNOWN");
+    expect(aggregateDelivery({ "a@example.org": submitted }, ["a@example.org"])).toBe("UNKNOWN");
+    expect(recipientState({ ...submitted, delivered: "queued" })).toBe("QUEUED");
   });
   it("waits for all expected recipients and detects partial failures", () => {
     expect(aggregateDelivery({ "a@example.org": { delivered: "yes" } }, ["a@example.org", "b@example.org"])).toBe("UNKNOWN");
