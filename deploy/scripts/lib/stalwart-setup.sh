@@ -424,6 +424,7 @@ framm_stalwart_ensure_ready() {
   framm_stalwart_sync_le_certs || true
   framm_stalwart_ensure_le_tls || true
   framm_stalwart_ensure_jmap_proxy || return 1
+  bash /opt/framm/deploy/scripts/install-mail-routing.sh || return 1
 }
 
 framm_stalwart_outbound_smtp_reachable() {
