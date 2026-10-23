@@ -42,13 +42,24 @@ export async function refreshOutbound(id: string): Promise<void> {
   try {
     const message = await prisma.outboundMessage.findUniqueOrThrow({ where: { id } });
     if (!message.submissionId) return;
+    const recipients = message.recipients as { to: string[]; cc: string[]; bcc: string[] };
+    const expected = [...recipients.to, ...recipients.cc, ...recipients.bcc];
+    const evidence = (message.deliveryJson ?? {}) as Record<string, RecipientDelivery>;
+    if (expected.length && expected.every(address => evidence[address]?.source && evidence[address].state !== "QUEUED")) {
+      await prisma.outboundMessage.update({ where: { id }, data: { nextCheckAt: new Date(Date.now() + 10 * 60_000), lastError: null } });
+      return;
+    }
     const result = await getSubmissionDelivery(message.accountId, message.submissionId);
     if (!result.ok) throw new Error(result.detail);
     const stored = message.recipients as { to: string[]; cc: string[]; bcc: string[] };
     const addresses = [...stored.to, ...stored.cc, ...stored.bcc];
     const known = Object.fromEntries(Object.entries(result.deliveryStatus ?? {}).map(([email, status]) => [email.toLowerCase(), status]));
-    const delivery = Object.fromEntries(addresses.map(email => [email, known[email] ?? {}])) as Record<string, RecipientDelivery>;
     await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "OutboundMessage" WHERE id=${message.id} FOR UPDATE`;
+      const latest = await tx.outboundMessage.findUniqueOrThrow({ where: { id: message.id } });
+      const stored = (latest.deliveryJson ?? {}) as Record<string, RecipientDelivery>;
+      // A synthetic JMAP "Queued" reply must never overwrite a durable SMTP/DSN receipt.
+      const delivery = Object.fromEntries(addresses.map(email => [email, stored[email]?.source ? stored[email] : known[email] ?? {}])) as Record<string, RecipientDelivery>;
       for (const address of addresses) if (permanentAddressFailure(delivery[address])) {
         await tx.mailSuppression.upsert({ where: { organizationId_address: { organizationId: message.organizationId, address } }, create: { organizationId: message.organizationId, address, reason: "hard_bounce", source: "stalwart_delivery_status" }, update: {} });
       }

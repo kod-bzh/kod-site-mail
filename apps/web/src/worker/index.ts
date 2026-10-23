@@ -1,5 +1,7 @@
 import { pollDmarcReports } from "@/lib/mail/dmarc-monitor";
 import { pollOutbound } from "@/lib/mail/delivery";
+import { pollMailWebhooks } from "@/lib/mail/webhooks";
+import { pollDsnReports } from "@/lib/mail/dsn-monitor";
 import { syncPricingIfStale } from "@/lib/billing/pricing";
 import { processMonthlyWalletDeductions } from "@/lib/billing/wallet";
 import { prisma } from "@/lib/prisma";
@@ -43,11 +45,18 @@ async function run() {
   const checkDelivery = async () => {
     if (deliveryPolling) return;
     deliveryPolling = true;
-    try { await pollOutbound(); await pollDmarcReports(); } catch (error) { console.error("Delivery monitoring unavailable", error instanceof Error ? error.message : "unknown"); }
+    try { await pollOutbound(); await pollDsnReports(); await pollDmarcReports(); } catch (error) { console.error("Delivery monitoring unavailable", error instanceof Error ? error.message : "unknown"); }
     finally { deliveryPolling = false; }
   };
   void checkDelivery();
   setInterval(() => { void checkDelivery(); }, 60_000);
+  let notifying = false;
+  const notify = async () => { if (notifying) return; notifying = true;
+    try { await pollMailWebhooks(); } catch { console.error("Mail webhook processing unavailable"); }
+    finally { notifying = false; }
+  };
+  void notify();
+  setInterval(() => { void notify(); }, 10_000);
 
   setInterval(syncUsage, DAY_MS);
   setInterval(() => {

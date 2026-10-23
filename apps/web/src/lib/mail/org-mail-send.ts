@@ -114,7 +114,7 @@ export async function validateFromDomainForOrg(
 export async function sendOrgMail(
   input: OrgMailSendInput
 ): Promise<
-  | { ok: true; messageId: string }
+  | { ok: true; messageId: string; trackingId: string; rfcMessageId: string }
   | { ok: false; error: OrgMailSendError; detail?: string }
 > {
   const fromEmail = parseEmailAddress(input.from);
@@ -172,12 +172,14 @@ export async function sendOrgMail(
   try {
     result = await sendViaStalwartMailbox(smtpAuth.accountId, { ...mailPayload, rfcMessageId: reserved.rfcMessageId });
   } catch {
-    await prisma.outboundMessage.update({ where: { id: reserved.id }, data: { status: "UNKNOWN", lastError: "Réponse de soumission inconnue ; ne pas renvoyer automatiquement." } });
+    await prisma.outboundMessage.updateMany({ where: { id: reserved.id, status: "RESERVED" }, data: { status: "UNKNOWN", lastError: "Réponse de soumission inconnue ; ne pas renvoyer automatiquement." } });
     return { ok: false, error: "send_failed", detail: "Réponse du serveur inconnue ; vérifier le suivi avant de réessayer." };
   }
   try {
-    await prisma.outboundMessage.update({ where: { id: reserved.id }, data: result.ok
-      ? { status: "SUBMITTED", submissionId: result.messageId }
+    if (result.ok) await prisma.outboundMessage.update({ where: { id: reserved.id }, data: { submissionId: result.messageId } });
+    // A fast receipt may already have reached us before submission returned.
+    await prisma.outboundMessage.updateMany({ where: { id: reserved.id, status: "RESERVED" }, data: result.ok
+      ? { status: "SUBMITTED" }
       : { status: "UNKNOWN", lastError: result.detail ?? result.code } });
   } catch {
     // Do not turn SMTP acceptance into an HTTP failure that invites a duplicate retry.
@@ -192,5 +194,5 @@ export async function sendOrgMail(
     };
   }
 
-  return { ok: true, messageId: result.messageId };
+  return { ok: true, messageId: result.messageId, trackingId: reserved.id, rfcMessageId: reserved.rfcMessageId };
 }

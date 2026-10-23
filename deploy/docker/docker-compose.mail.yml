@@ -45,6 +45,29 @@ services:
       - stalwart
     command: ["TCP-LISTEN:18080,fork,reuseaddr", "TCP:127.0.0.1:8080"]
 
+  mail-receipts:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    network_mode: "service:stalwart"
+    depends_on:
+      - stalwart
+    user: "2000:2000"
+    read_only: true
+    mem_limit: 128m
+    environment:
+      STALWART_API_KEY: ${STALWART_API_KEY}
+      MAIL_RECEIPT_URL: https://${PRIMARY_PLATFORM_DOMAIN}/api/internal/mail/receipts
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - /opt/framm/deploy/scripts/mail-receipt-bridge.py:/app/bridge.py:ro
+      - /opt/framm/mail-receipts:/var/lib/framm-mail-receipts
+    command: ["python", "-u", "/app/bridge.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8791/health', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
   bulwark:
     # Version épinglée — mises à jour automatisées par Renovate (renovate.json).
     image: ghcr.io/bulwarkmail/webmail:1.7.3

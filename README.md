@@ -206,14 +206,15 @@ curl -X POST 'https://kod.bzh/api/v1/mail/send' \
   --data-binary @/tmp/framm-mail.json
 ```
 
-Succès inchangé : `{ "ok": true, "messageId": "..." }`. Le MCP `send_mail` accepte les mêmes champs ; `explain_mail_send_api` fournit le contrat et les exemples. Le domaine doit appartenir à l’organisation et une boîte Stalwart doit être disponible.
+Succès : `{ "ok": true, "messageId": "...", "trackingId": "...", "rfcMessageId": "..." }`. Conserver `trackingId`, unique pour le suivi ; `messageId` reste l’identifiant de soumission compatible avec les intégrations existantes. `explain_mail_send_api` fournit le contrat et les exemples. Le domaine doit appartenir à l’organisation et une boîte Stalwart doit être disponible.
 
 
 ### Suivi de livraison et protection de la réputation
 
-Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne garantit ni la réception, ni le classement hors spam. `ACCEPTED` indique une acceptation technique avec réponse 2xx ; `delivered: unknown` ne certifie pas la réception finale.
+Le succès `{ ok: true, messageId, trackingId }` confirme la soumission au serveur. `ACCEPTED` avec une preuve `source: smtp` indique une réponse SMTP finale 2xx du serveur distant. Cela ne garantit ni le classement hors spam, ni la lecture. Une réponse synthétique `250 Queued` avec `delivered: unknown` reste `UNKNOWN`.
 
-- `GET /api/v1/mail/messages` : 50 derniers envois de la clé utilisée (`mail:send`). Ajouter `messageId` et `from` pour vérifier une soumission ; les identifiants JMAP sont propres à chaque boîte. `id` et `rfcMessageId` sont uniques. L’admin précise `organizationSlug`. Une ambiguïté retourne 409.
+- `GET /api/v1/mail/messages?messageId=<trackingId>` : état et preuves horodatées par destinataire (`deliveryJson`, `events`, maximum 100 événements). Sans paramètre : 50 derniers envois de la clé utilisée (`mail:send`). L’ancien identifiant de soumission reste accepté avec `from` ; il est propre à chaque boîte. L’admin précise `organizationSlug`. Une ambiguïté retourne 409.
+- Les preuves SMTP sont persistées indépendamment de la file temporaire du serveur. Les doublons sont ignorés et une lecture JMAP ultérieure ne peut pas effacer une preuve SMTP. Les DSN structurés avec l’identifiant d’enveloppe original sont observés pendant sept jours : un retour `failed` peut signaler `BOUNCED` après acceptation, tout en conservant `acceptedAt` et l’historique. Aucun retour distant n’est présumé disponible.
 - `GET` rafraîchit les résultats dus ; le worker les contrôle chaque minute, avec un intervalle de dix minutes par message pendant sept jours. Les confirmations finales cessent d’être interrogées. Les erreurs restent visibles ; aucune relance automatique d’un message incertain.
 - MCP : `get_mail_delivery_status` expose les mêmes observations ; `verify_domain` contrôle DNS, signature activée et reverse DNS. Les clés DKIM en attente de rotation sont également fournies pour publication.
 - Interface : **Suivi des envois**, résultats par destinataire, erreurs, adresses bloquées et rapports DMARC reçus. Les Bcc ne sont jamais montrés aux destinataires, mais restent accessibles au propriétaire de la clé et aux administrateurs de son organisation.
@@ -227,6 +228,31 @@ Le succès `{ ok: true, messageId }` confirme la soumission au serveur. Il ne ga
 DMARC commence en observation (`p=none`) avec `rua`. Après inventaire de tous les expéditeurs et analyse des rapports, renforcer progressivement vers `quarantine`, puis `reject`. Ces politiques protègent contre l’usurpation ; elles ne garantissent pas le classement en boîte principale. Pour une campagne marketing : consentement, traitement des plaintes et désabonnement en un clic sont nécessaires ; l’API transactionnelle ne les invente pas.
 
 Test d’intégration sans envoi : base PostgreSQL jetable uniquement sur `127.0.0.1:15439/framm_test`, appliquer les migrations puis `DATABASE_URL=… npx tsx scripts/check-mail-policy.ts` depuis `apps/web`.
+
+### Notifications de livraison
+
+Avec la même clé `mail:send` utilisée pour envoyer, créer un abonnement avant les envois :
+
+```sh
+curl --fail-with-body 'https://kod.bzh/api/v1/mail/webhooks' \
+  -H "Authorization: Bearer $FRAMM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data '{"url":"https://votre-application.fr/webhooks/kod"}'
+```
+
+La réponse 201 fournit `webhook` et `signingSecret`, affiché une seule fois. Stocker le secret côté serveur. L’URL doit être HTTPS publique sur le port 443 ; les adresses privées, les destinations DNS mixtes et les redirections sont refusées. Maximum cinq abonnements par clé, limités aux envois de cette clé. L’admin précise `organizationSlug` et reçoit les envois admin uniquement.
+
+Événements : `email.accepted`, `email.failed`, `email.deferred`, `email.bounced`. Format : `{id,type,occurredAt,data:{trackingId,submissionId,rfcMessageId,from,recipient,smtpReply,remoteMta}}`. Le corps et les fichiers joints ne sont jamais inclus.
+
+Vérifier `X-Kod-Signature = v1=<hex HMAC-SHA256(signingSecret, X-Kod-Timestamp + '.' + corps HTTP brut)>` en temps constant **avant** de décoder le JSON. `X-Kod-Timestamp` est un entier en secondes Unix ; tolérance de cinq minutes. `X-Kod-Event-Id` est égal à `id`. Enregistrer de façon durable, dédupliquer par `id` et répondre 2xx. Des événements peuvent arriver dans le désordre : conserver leur horodatage et l’historique.
+
+La notification est livrée au moins une fois, avec jusqu’à douze essais pendant 24 h. Un nouvel essai de notification ne renvoie jamais l’email. `GET /api/v1/mail/webhooks` retourne les abonnements sans secret et leurs vingt derniers essais. `DELETE /api/v1/mail/webhooks?id=<id>` supprime un abonnement. Pour changer la destination ou le secret, créer un nouvel abonnement puis retirer l’ancien. Après expiration des essais, le suivi par GET reste disponible pendant la rétention de 90 jours.
+
+### Exploitation des preuves SMTP
+
+Le service Docker `mail-receipts` partage uniquement le réseau local de Stalwart. Un hook DATA associe l’identifiant de file (hexadécimal) au `Message-ID` UUID et à l’enveloppe exacte avant la mise en file. Le corps du hook est consommé progressivement ; seuls les métadonnées et les événements SMTP sélectionnés sont conservés dans SQLite. Les nombres 64 bits ne passent jamais par un nombre JavaScript.
+
+Les événements natifs sont signés et mis en attente durable avant transmission à `/api/internal/mail/receipts`, authentifiée par HMAC horodaté. La clé est dérivée de `STALWART_API_KEY` avec le contexte distinct `kod-mail-receipts-v1`. Après rotation de cette clé, redéployer la configuration native et le service de preuves avec la même valeur que les pods. L’installateur conserve les autres hooks et rafraîchit le réseau du service après une recréation Stalwart. Une panne de suivi ne bloque pas l’envoi et n’invente pas une confirmation : le statut reste inconnu tant qu’aucune preuve n’a été enregistrée.
 
 
 ### Rotation DKIM OVH de mail.d2-group.fr

@@ -115,6 +115,7 @@ model Organization {
   outboundMessages   OutboundMessage[]
   mailSuppressions   MailSuppression[]
   mailSendBudget     MailSendBudget?
+  mailWebhooks       MailWebhook[]
   apiKeys            OrganizationApiKey[]
 }
 
@@ -210,11 +211,54 @@ model OutboundMessage {
   leaseUntil       DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  events           MailDeliveryEvent[]
 
   @@index([organizationId, createdAt])
   @@index([status, nextCheckAt])
   @@index([organizationId, submissionId])
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model MailDeliveryEvent {
+  id         String @id
+  messageId  String
+  recipient  String
+  type       String
+  occurredAt DateTime
+  data       Json
+  createdAt  DateTime @default(now())
+  message    OutboundMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  attempts   MailWebhookAttempt[]
+  @@index([messageId, occurredAt])
+}
+
+model MailWebhook {
+  id             String @id @default(cuid())
+  organizationId String
+  initiatorId    String
+  url            String
+  secretCipher   String
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attempts       MailWebhookAttempt[]
+  @@index([organizationId, initiatorId])
+}
+
+model MailWebhookAttempt {
+  id          String @id @default(cuid())
+  webhookId   String
+  eventId     String
+  attempts    Int @default(0)
+  nextAttempt DateTime @default(now())
+  leaseUntil  DateTime?
+  completedAt DateTime?
+  lastStatus  Int?
+  lastError   String?
+  createdAt   DateTime @default(now())
+  webhook     MailWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event       MailDeliveryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  @@unique([webhookId, eventId])
+  @@index([completedAt, nextAttempt])
 }
 
 model MailSuppression {

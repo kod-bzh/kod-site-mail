@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json({ ok: true, messageId: result.messageId });
+      return NextResponse.json({ ok: true, messageId: result.messageId, trackingId: result.trackingId, rfcMessageId: result.rfcMessageId });
     }
 
     if (!isAdminToken) {
