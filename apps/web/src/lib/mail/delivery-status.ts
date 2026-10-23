@@ -12,6 +12,8 @@ export function recipientState(status: RecipientDelivery): RecipientState {
   return "UNKNOWN";
 }
 export function permanentAddressFailure(status: RecipientDelivery): boolean {
+  // Received DSNs can be forged: expose the report without poisoning addresses.
+  if (status.source === "dsn") return false;
   // Policy/authentication/content failures must never poison a recipient address.
   return status.delivered === "no" && /^(?:5\d\d\s+)?5\.1\.(?:1|2|3|6)\b/.test(status.smtpReply ?? "");
 }

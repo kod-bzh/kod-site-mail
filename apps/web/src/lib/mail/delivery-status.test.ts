@@ -20,5 +20,7 @@ describe("honest delivery observations", () => {
     expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.1.1 User unknown" })).toBe(true);
     expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.7.1 Spam rejected" })).toBe(false);
     expect(permanentAddressFailure({ delivered: "queued", smtpReply: "450 4.1.1 Temporary error" })).toBe(false);
+    expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.1.1 User unknown", source: "dsn", state: "BOUNCED" })).toBe(false);
+    expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.1.1 User unknown", source: "smtp", state: "FAILED" })).toBe(true);
   });
 });
