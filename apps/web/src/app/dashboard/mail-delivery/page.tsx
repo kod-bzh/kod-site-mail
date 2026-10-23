@@ -19,7 +19,7 @@ export default async function MailDeliveryPage() {
   ]);
   const fresh = monitor && !monitor.lastError && Date.now() - monitor.checkedAt.getTime() < 180_000;
   const reportMonitors = await prisma.mailMonitorState.findMany({ where: { id: { in: mailboxes.map(box => `dmarc:${box.id}`) } } });
-  const statuses = { RESERVED: t("statuses.RESERVED"), SUBMITTED: t("statuses.SUBMITTED"), QUEUED: t("statuses.QUEUED"), ACCEPTED: t("statuses.ACCEPTED"), DELIVERED: t("statuses.DELIVERED"), FAILED: t("statuses.FAILED"), PARTIAL: t("statuses.PARTIAL"), UNKNOWN: t("statuses.UNKNOWN") };
+  const statuses = { RESERVED: t("statuses.RESERVED"), SUBMITTED: t("statuses.SUBMITTED"), QUEUED: t("statuses.QUEUED"), ACCEPTED: t("statuses.ACCEPTED"), DELIVERED: t("statuses.DELIVERED"), FAILED: t("statuses.FAILED"), BOUNCED: t("statuses.BOUNCED"), PARTIAL: t("statuses.PARTIAL"), UNKNOWN: t("statuses.UNKNOWN") };
   const status = (value: string) => statuses[value as keyof typeof statuses] ?? statuses.UNKNOWN;
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-semibold">{t("title")}</h1><p className="mt-2 text-sm text-zinc-600">{DELIVERY_NOTICE}</p></div>

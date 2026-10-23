@@ -1907,9 +1907,10 @@
       "RESERVED": "Préparation",
       "SUBMITTED": "Soumis au serveur",
       "QUEUED": "En attente / nouvel essai serveur",
-      "ACCEPTED": "Accepté, réception non confirmée",
-      "DELIVERED": "Livraison confirmée",
+      "ACCEPTED": "Accepté par le serveur destinataire",
+      "DELIVERED": "Livraison technique confirmée",
       "FAILED": "Échec définitif",
+      "BOUNCED": "Retour d’échec après envoi",
       "PARTIAL": "Résultat partiel",
       "UNKNOWN": "Résultat non confirmé"
     },

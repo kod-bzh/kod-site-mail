@@ -25,6 +25,7 @@ set +a
 source /opt/framm/deploy/scripts/lib/host-setup.sh
 framm_host_setup mail
 framm_host_migrate_stalwart
+install -d -o 2000 -g 2000 -m 0700 /opt/framm/mail-receipts
 cd /opt/framm/deploy/docker
 export COMPOSE_PROJECT_NAME=framm-mail
 docker compose -f docker-compose.mail.yml pull
@@ -32,6 +33,7 @@ docker compose -f docker-compose.mail.yml up -d
 # shellcheck source=lib/stalwart-setup.sh
 source /opt/framm/deploy/scripts/lib/stalwart-setup.sh
 framm_stalwart_ensure_ready
+bash /opt/framm/deploy/scripts/install-mail-receipts.sh
 REMOTE
 
 echo "Nginx mail (TLS si certificats présents)..."

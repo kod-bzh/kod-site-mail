@@ -20,7 +20,8 @@ export async function GET(req: Request) {
     const record = records[0];
     if (!record) return Response.json({ error: "not_found" }, { status: 404 });
     if (record.nextCheckAt <= new Date() && record.submissionId) await refreshOutbound(record.id);
-    const message = await prisma.outboundMessage.findUnique({ where: { id: record.id }, omit: { leaseUntil: true, initiatorId: true, accountId: true } });
+    const message = await prisma.outboundMessage.findUnique({ where: { id: record.id }, omit: { leaseUntil: true, initiatorId: true, accountId: true },
+      include: { events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
     return Response.json({ message, notice: DELIVERY_NOTICE });
   }
   const messages = await prisma.outboundMessage.findMany({ where, orderBy: { createdAt: "desc" }, take: 50,

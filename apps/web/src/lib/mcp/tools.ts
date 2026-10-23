@@ -367,9 +367,10 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         omit: { accountId: true, initiatorId: true, leaseUntil: true } });
       if (messageId && records.length > 1) return fail("ambiguous_message_id", { detail: "Préciser from ou utiliser id/rfcMessageId unique." });
       if (messageId && !records.length) return fail("not_found");
-      if (messageId && records[0].submissionId && records[0].nextCheckAt <= new Date()) {
-        await refreshOutbound(records[0].id);
-        const message = await prisma.outboundMessage.findUnique({ where: { id: records[0].id }, omit: { accountId: true, initiatorId: true, leaseUntil: true } });
+      if (messageId) {
+        if (records[0].submissionId && records[0].nextCheckAt <= new Date()) await refreshOutbound(records[0].id);
+        const message = await prisma.outboundMessage.findUnique({ where: { id: records[0].id }, omit: { accountId: true, initiatorId: true, leaseUntil: true },
+          include: { events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
         return ok({ message, notice: DELIVERY_NOTICE });
       }
       return ok({ messages: records, notice: DELIVERY_NOTICE });
@@ -423,7 +424,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         attachments: parsed.data.attachments,
       });
       if (!result.ok) return fail(result.error, { detail: result.detail });
-      return ok({ ok: true, messageId: result.messageId });
+      return ok({ ok: true, messageId: result.messageId, trackingId: result.trackingId, rfcMessageId: result.rfcMessageId });
     },
   },
 ];

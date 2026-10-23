@@ -1128,7 +1128,7 @@ export async function sendMailViaStalwartJmap(input: {
               emailId: `#${draftKey}`,
               identityId,
               envelope: {
-                mailFrom: { email: fromEmail },
+                mailFrom: { email: fromEmail, ...(input.rfcMessageId ? { parameters: { ENVID: input.rfcMessageId.split("@")[0] } } : {}) },
                 rcptTo: [...to, ...cc, ...bcc].map(email => ({ email })),
               },
             },
@@ -1279,4 +1279,25 @@ export async function downloadReportBlob(accountId: string, blobId: string): Pro
     }
   } finally { reader.releaseLock(); }
   return Buffer.concat(chunks);
+}
+
+/** Structured DSNs only, within the late-bounce observation window. */
+export async function listDsnMessages(accountId: string, addresses: string[]) {
+  const result = await jmapCall([
+    ["Email/query", { accountId, filter: { operator: "AND", conditions: [
+      { header: ["Content-Type", "multipart/report"] }, { after: new Date(Date.now() - 7 * 86400_000).toISOString() },
+      { notKeyword: "$kodDsnProcessed" }, { operator: "OR", conditions: addresses.map(to => ({ to })) },
+    ] }, sort: [{ property: "receivedAt", isAscending: true }], limit: 20 }, "q"],
+    ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "receivedAt", "bodyStructure"] }, "g"],
+  ], 20_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result); if (error) throw Error(error);
+  const body = asJmapResponses(result).find(row => row[0] === "Email/get")?.[1] as { list?: { id: string; receivedAt: string; bodyStructure: ReportPart }[] } | undefined;
+  if (!body?.list) throw Error("Retours de livraison indisponibles");
+  const flatten = (part: ReportPart, depth = 0): ReportPart[] => depth > 16 ? [] : [part, ...(part.subParts ?? []).flatMap(child => flatten(child, depth + 1))];
+  return body.list.map(message => ({ id: message.id, receivedAt: message.receivedAt,
+    parts: flatten(message.bodyStructure).filter(part => part.blobId && ["message/delivery-status", "message/global-delivery-status"].includes(part.type ?? "")).slice(0, 10) }));
+}
+export async function markDsnProcessed(accountId: string, emailId: string) {
+  const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$kodDsnProcessed": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result); if (error) throw Error(error);
 }
