@@ -1,4 +1,4 @@
-import type { MailAttachment } from "./send-payload";
+import type { OutboundAttachment } from "./send-payload";
 import { sendMailViaStalwartJmap } from "@/lib/stalwart/client";
 
 export type OutboundMailPayload = {
@@ -10,7 +10,7 @@ export type OutboundMailPayload = {
   cc?: string | string[];
   bcc?: string | string[];
   replyTo?: string;
-  attachments?: MailAttachment[];
+  attachments?: OutboundAttachment[];
   rfcMessageId?: string;
 };
 

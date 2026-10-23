@@ -1,4 +1,4 @@
-import { attachmentSchema } from "./send-payload";
+import { attachmentSchema, type OutboundAttachment } from "./send-payload";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getPlatformEmailDomains } from "@/lib/platform-domains";
@@ -89,7 +89,7 @@ export const adminSendMailSchema = z
     path: ["text"],
   });
 
-export type AdminSendMailInput = z.infer<typeof adminSendMailSchema>;
+export type AdminSendMailInput = Omit<z.infer<typeof adminSendMailSchema>, "attachments"> & { attachments?: OutboundAttachment[] };
 
 export type AdminSendMailResult =
   | { ok: true; via: string; messageId?: string }

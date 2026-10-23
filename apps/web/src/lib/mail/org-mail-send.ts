@@ -1,5 +1,5 @@
 import { MailPolicyError, reserveOutbound } from "./delivery";
-import { validateAttachments, normalizeMailRecipients, type MailAttachment } from "./send-payload";
+import { validateAttachments, normalizeMailRecipients, type OutboundAttachment } from "./send-payload";
 import { prisma } from "@/lib/prisma";
 import { MAIL_USABLE_DOMAIN_STATUSES } from "@/lib/domain-status";
 import { sendViaStalwartMailbox } from "@/lib/mail/outbound-smtp";
@@ -17,7 +17,7 @@ export type OrgMailSendInput = {
   replyTo?: string;
   cc?: string | string[];
   bcc?: string | string[];
-  attachments?: MailAttachment[];
+  attachments?: OutboundAttachment[];
   initiatorId?: string;
 };
 

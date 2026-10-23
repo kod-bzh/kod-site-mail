@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { RecipientDelivery } from "@/lib/mail/delivery-status";
-import { decodeAttachments, normalizeMailRecipients, type MailAttachment } from "@/lib/mail/send-payload";
+import { validateAttachments, normalizeMailRecipients, type OutboundAttachment } from "@/lib/mail/send-payload";
+import { UploadedAttachment } from "@/lib/mail/uploaded-attachment";
+import { Readable } from "node:stream";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -982,7 +984,7 @@ export async function sendMailViaStalwartJmap(input: {
   cc?: string | string[];
   bcc?: string | string[];
   replyTo?: string;
-  attachments?: MailAttachment[];
+  attachments?: OutboundAttachment[];
   rfcMessageId?: string;
 }): Promise<
   { ok: true; messageId: string; via: string } | { ok: false; code: "smtp_not_configured" | "send_failed"; detail?: string }
@@ -996,7 +998,8 @@ export async function sendMailViaStalwartJmap(input: {
   let files;
   try {
     recipients = normalizeMailRecipients(input);
-    files = decodeAttachments(input.attachments);
+    validateAttachments(input.attachments);
+    files = input.attachments ?? [];
   } catch (error) {
     return { ok: false, code: "send_failed", detail: (error as Error).message };
   }
@@ -1079,17 +1082,24 @@ export async function sendMailViaStalwartJmap(input: {
       if (!session.uploadUrl) throw new Error("URL de téléversement JMAP absente");
       const attachmentParts = [];
       for (const [index, file] of files.entries()) {
+        const stream = file instanceof UploadedAttachment ? file.open() : null;
+        const contentType = file.contentType ?? "application/octet-stream";
         try {
           const upload = await fetch(session.uploadUrl.replace("{accountId}", encodeURIComponent(input.accountId)), {
-            method: "POST", headers: { Authorization: `Bearer ${STALWART_API_KEY}`, "Content-Type": file.contentType },
-            body: new Uint8Array(file.content), signal: AbortSignal.timeout(30_000),
-          });
+            method: "POST", headers: { Authorization: `Bearer ${STALWART_API_KEY}`, "Content-Type": contentType,
+              ...(file instanceof UploadedAttachment ? { "Content-Length": String(file.size) } : {}),
+            },
+            body: stream ? Readable.toWeb(stream, { strategy: { highWaterMark: 65_536, size: (chunk: Uint8Array) => chunk.byteLength } }) as ReadableStream<Uint8Array> : new Uint8Array(Buffer.from((file as { content: string }).content, "base64")),
+            ...(stream ? { duplex: "half" } : {}), signal: AbortSignal.timeout(60_000),
+          } as RequestInit & { duplex?: "half" });
           if (!upload.ok) throw new Error(`HTTP ${upload.status}`);
           const blob = await upload.json() as { blobId?: string };
           if (!blob.blobId) throw new Error("blobId absent");
-          attachmentParts.push({ blobId: blob.blobId, type: file.contentType, name: file.filename, disposition: "attachment" });
+          attachmentParts.push({ blobId: blob.blobId, type: contentType, name: file.filename.trim(), disposition: "attachment" });
         } catch (error) {
           throw new Error(`attachments[${index}] (${file.filename}) : ${(error as Error).message}`);
+        } finally {
+          stream?.destroy();
         }
       }
       const text = emailCreate.textBody as Record<string, unknown>[] | undefined;

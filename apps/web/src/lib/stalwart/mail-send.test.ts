@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules(); });
 async function setup(uploadFails = false) {
@@ -6,9 +9,17 @@ async function setup(uploadFails = false) {
   vi.stubEnv("STALWART_API_KEY", "test-key");
   const calls: Array<[string, Record<string, unknown>, string]> = [];
   const uploads: Uint8Array[] = [];
+  const streamed: boolean[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith("/.well-known/jmap")) return { ok: true, json: async () => ({ uploadUrl: "https://mail.example.org/jmap/upload/{accountId}/" }) };
-    if (url.includes("/upload/")) { uploads.push(init!.body as Uint8Array); return { ok: !uploadFails, status: 500, json: async () => ({ blobId: "pdf-blob" }) }; }
+    if (url.includes("/upload/")) {
+      streamed.push(init!.body instanceof ReadableStream);
+      if (init!.body instanceof ReadableStream) {
+        expect((init as RequestInit & { duplex: string }).duplex).toBe("half");
+        uploads.push(new Uint8Array(await new Response(init!.body).arrayBuffer()));
+      } else uploads.push(init!.body as Uint8Array);
+      return { ok: !uploadFails, status: 500, json: async () => ({ blobId: "pdf-blob" }) };
+    }
     const methods = JSON.parse(init!.body as string).methodCalls;
     calls.push(...methods);
     return { ok: true, json: async () => ({ methodResponses: methods.map(([name]: [string]) => [name,
@@ -19,7 +30,7 @@ async function setup(uploadFails = false) {
     ]) }) };
   }));
   const { sendMailViaStalwartJmap } = await import("./client");
-  return { send: sendMailViaStalwartJmap, calls, uploads };
+  return { send: sendMailViaStalwartJmap, calls, uploads, streamed };
 }
 const base = { accountId: "account", from: "sender@example.org", to: "to@example.com", subject: "Test", text: "Body" };
 describe("Stalwart outbound message", () => {
@@ -46,6 +57,19 @@ describe("Stalwart outbound message", () => {
     const { send, calls } = await setup(true);
     expect(await send({ ...base, attachments: [{ filename: "document.pdf", content: "YQ==" }] })).toMatchObject({ ok: false, detail: expect.stringContaining("document.pdf") });
     expect(calls.some(c => c[0] === "EmailSubmission/set" || c[0] === "Email/set")).toBe(false);
+  });
+  it("streams temporary attachments to JMAP without a Base64 round trip", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "kod-jmap-test-"));
+    try {
+      const { send, calls, uploads, streamed } = await setup();
+      const { UploadedAttachment } = await import("@/lib/mail/uploaded-attachment");
+      const bytes = Buffer.from([0, 255, 13, 10, 128, 65]);
+      const path = join(directory, "upload"); await writeFile(path, bytes);
+      expect(await send({ ...base, attachments: [new UploadedAttachment("document.bin", "application/octet-stream", bytes.length, path)] })).toMatchObject({ ok: true });
+      expect(streamed).toEqual([true]);
+      expect(Buffer.from(uploads[0])).toEqual(bytes);
+      expect(calls.some(c => c[0] === "EmailSubmission/set")).toBe(true);
+    } finally { await rm(directory, { recursive: true, force: true }); }
   });
   it("still sends the legacy payload", async () => {
     const { send, calls } = await setup();

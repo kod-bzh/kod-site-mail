@@ -1,12 +1,14 @@
 import { z } from "zod";
+import { UploadedAttachment } from "./uploaded-attachment";
 
 export const MAX_ATTACHMENT_BYTES = 50_000_000;
-export const attachmentSchema = z.object({
+export const attachmentMetadataSchema = z.object({
   filename: z.string().trim().min(1).max(255).refine(v => !/[\r\n\0]/.test(v), "Nom de fichier invalide"),
-  content: z.string(),
   contentType: z.string().regex(/^[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+$/).optional(),
 });
+export const attachmentSchema = attachmentMetadataSchema.extend({ content: z.string() });
 export type MailAttachment = z.infer<typeof attachmentSchema>;
+export type OutboundAttachment = MailAttachment | UploadedAttachment;
 const recipients = z.union([z.string().min(3).max(320), z.array(z.string().min(3).max(320)).min(1).max(50)]);
 export const sendBodySchema = z.object({
   from: z.string().min(3).max(320), to: recipients,
@@ -16,10 +18,16 @@ export const sendBodySchema = z.object({
   replyTo: z.string().max(320).optional(), attachments: z.array(attachmentSchema).optional(),
 });
 
-export function validateAttachments(attachments: MailAttachment[] = []): void {
+export function validateAttachments(attachments: OutboundAttachment[] = []): void {
   let total = 0;
   for (const [index, file] of attachments.entries()) {
     const fail = (reason: string): never => { throw new Error(`attachments[${index}] (${file.filename || "nom vide"}) : ${reason}`); };
+    if (file instanceof UploadedAttachment) {
+      if (!attachmentMetadataSchema.safeParse(file).success || !Number.isSafeInteger(file.size) || file.size < 0) fail("Fichier invalide");
+      total += file.size;
+      if (total > MAX_ATTACHMENT_BYTES) fail("total supérieur à 50 Mo (50 000 000 octets)");
+      continue;
+    }
     const parsed = attachmentSchema.safeParse(file);
     if (!parsed.success) fail(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
     if (file.content.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(file.content) || !/^[^=]*={0,2}$/.test(file.content)) fail("base64 illisible");
