@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendBodySchema, validateAttachments } from "@/lib/mail/send-payload";
+import { MailRequestError, parseMailSendRequest } from "@/lib/mail/send-request";
 import { hasScope, MAIL_SEND_SCOPE, verifyBearerApiKey } from "@/lib/api-keys";
 import { resolveV1ActorFromRequest } from "@/lib/api/v1-auth";
 import { sendAdminMail, verifyAdminMailToken } from "@/lib/mail/admin-send";
@@ -8,6 +8,7 @@ import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const actor = await resolveV1ActorFromRequest(req);
@@ -50,72 +51,70 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  let body: unknown;
+  let payload;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    payload = await parseMailSendRequest(req);
+  } catch (error) {
+    if (error instanceof MailRequestError) return NextResponse.json({ error: error.code, detail: error.message }, { status: error.status });
+    console.error("[mail] Upload preparation unavailable");
+    return NextResponse.json({ error: "upload_unavailable", detail: "Réception des fichiers indisponible ; aucun envoi effectué" }, { status: 503 });
   }
+  const input = payload.input;
+  try {
+    const organizationId =
+      apiKey?.organizationId ?? (await findOrganizationIdByFromAddress(input.from));
 
-  const parsed = sendBodySchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body", detail: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 400 });
-  }
-  try { validateAttachments(parsed.data.attachments); } catch (error) {
-    return NextResponse.json({ error: "invalid_attachments", detail: (error as Error).message }, { status: 400 });
-  }
+    if (organizationId) {
+      const result = await sendOrgMail({
+        organizationId,
+        ...input,
+        initiatorId: apiKey?.id ?? "admin",
+      });
 
-  const organizationId =
-    apiKey?.organizationId ?? (await findOrganizationIdByFromAddress(parsed.data.from));
+      if (!result.ok) {
+        const status = ERROR_STATUS[result.error] ?? 400;
+        return NextResponse.json(
+          { error: result.error, ...(result.detail ? { detail: result.detail } : {}) },
+          { status }
+        );
+      }
 
-  if (organizationId) {
-    const result = await sendOrgMail({
-      organizationId,
-      ...parsed.data,
-      initiatorId: apiKey?.id ?? "admin",
-    });
+      await prisma.auditLog.create({
+        data: {
+          organizationId,
+          action: "api.mail.send",
+          target: input.from,
+          metadata: {
+            apiKeyId: apiKey?.id ?? "admin-mail-token",
+            to: input.to,
+            subject: input.subject,
+            messageId: result.messageId,
+          },
+        },
+      });
 
-    if (!result.ok) {
-      const status = ERROR_STATUS[result.error] ?? 400;
+      return NextResponse.json({ ok: true, messageId: result.messageId });
+    }
+
+    if (!isAdminToken) {
+      return NextResponse.json({ error: "domain_not_in_org" }, { status: 403 });
+    }
+
+    const adminResult = await sendAdminMail(input);
+    if (!adminResult.ok) {
+      const status = adminResult.code === "invalid_from" ? 422 : 502;
       return NextResponse.json(
-        { error: result.error, ...(result.detail ? { detail: result.detail } : {}) },
+        { error: adminResult.code, detail: adminResult.detail },
         { status }
       );
     }
 
-    await prisma.auditLog.create({
-      data: {
-        organizationId,
-        action: "api.mail.send",
-        target: parsed.data.from,
-        metadata: {
-          apiKeyId: apiKey?.id ?? "admin-mail-token",
-          to: parsed.data.to,
-          subject: parsed.data.subject,
-          messageId: result.messageId,
-        },
-      },
+    return NextResponse.json({
+      ok: true,
+      via: adminResult.via,
+      messageId: adminResult.messageId,
     });
-
-    return NextResponse.json({ ok: true, messageId: result.messageId });
+  } finally {
+    await payload.cleanup();
   }
-
-  if (!isAdminToken) {
-    return NextResponse.json({ error: "domain_not_in_org" }, { status: 403 });
-  }
-
-  const adminResult = await sendAdminMail(parsed.data);
-  if (!adminResult.ok) {
-    const status = adminResult.code === "invalid_from" ? 422 : 502;
-    return NextResponse.json(
-      { error: adminResult.code, detail: adminResult.detail },
-      { status }
-    );
-  }
-
-  return NextResponse.json({
-    ok: true,
-    via: adminResult.via,
-    messageId: adminResult.messageId,
-  });
 }

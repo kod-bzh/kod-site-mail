@@ -55,6 +55,7 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - name: Mail routing and DKIM safety tests
         run: python3 -m unittest discover -s ../../deploy/tests -p 'test_*.py' -v
       - run: npm run build -- --webpack

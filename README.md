@@ -164,7 +164,22 @@ Copyright © Association Kod Digor. Voir le fichier [LICENSE](LICENSE).
 
 ## API d’envoi d’emails
 
-`POST https://kod.bzh/api/v1/mail/send`, avec `Authorization: Bearer $FRAMM_API_KEY` et `Content-Type: application/json`.
+`POST https://kod.bzh/api/v1/mail/send`, avec `Authorization: Bearer $FRAMM_API_KEY`. Deux formats acceptés : `application/json` (pièces jointes en Base64, compatible avec les intégrations existantes) et `multipart/form-data` (fichiers binaires directs).
+
+Pour envoyer sans Base64, transmettre les mêmes champs sous forme de texte et répéter `attachments` pour les fichiers. `attachments[]` est aussi accepté. Répéter `to`, `cc` ou `bcc` pour plusieurs destinataires, ou fournir un tableau JSON dans le champ correspondant. Les autres champs ne doivent pas être répétés. Limites multipart : **50 000 000 octets cumulés de fichiers et 100 fichiers**. Un dépassement renvoie 413 `payload_too_large` sans soumission d’email. Les fichiers sont lus progressivement puis transmis au serveur mail ; les fichiers temporaires sont supprimés après traitement ou interruption.
+
+```bash
+curl --fail-with-body 'https://kod.bzh/api/v1/mail/send' \
+  -H "Authorization: Bearer $FRAMM_API_KEY" \
+  --form-string 'from=noreply@asso.fr' \
+  --form-string 'to=client@example.com' \
+  --form-string 'subject=Documents' \
+  --form-string 'text=Veuillez trouver les fichiers joints.' \
+  -F 'attachments=@document.pdf;type=application/pdf' \
+  -F 'attachments=@photo.jpg;type=image/jpeg'
+```
+
+Avec `curl -F` ou `FormData`, ne pas fixer soi-même `Content-Type` : le client doit générer le boundary multipart. Utiliser `--form-string` pour les champs texte curl afin qu’une valeur commençant par `@` ne soit pas interprétée comme un fichier local. La limite propre à la messagerie destinataire s’applique également.
 
 JSON : `from`, `to`, `subject`, au moins `text` ou `html` ; `replyTo`, `cc`, `bcc` et `attachments` sont optionnels. `to`, `cc` et `bcc` acceptent une adresse ou un tableau de 1 à 50 adresses chacun. Les doublons sont supprimés sans tenir compte de la casse, priorité `to > cc > bcc`. Les copies visibles restent dans `Cc` ; le BCC est transmis uniquement dans l’enveloppe de livraison et ne figure pas dans les en-têtes ou le corps.
 
