@@ -33,7 +33,7 @@ const orangeCodes: Record<string, { category: string; action: string }> = {
   "990": { category: "reputation_limited", action: "Examiner la réputation du domaine." },
 };
 export function orangeDiagnostic(provider: string, value: RecipientDelivery) {
-  if (provider !== "orange_wanadoo" || value.source !== "smtp") return null;
+  if (provider !== "orange_wanadoo" || value.source !== "smtp" || !/^[45]\d{2}\b/.test(value.smtpReply ?? "")) return null;
   const match = value.smtpReply?.match(/\bOFR(?:\d{1,3})?[_-](\d{2,3})\b/i);
   if (!match) return null;
   return { code: match[1], ...(orangeCodes[match[1]] ?? { category: "provider_policy_unknown", action: "Consulter le diagnostic officiel Orange." }), source: ORANGE_POSTMASTER };

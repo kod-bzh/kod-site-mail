@@ -12,6 +12,8 @@ Les MX publics d’orange.fr et wanadoo.fr pointent vers smtp-in.orange.fr et sm
 
 `diagnostics` regroupe les suffixes OFR explicitement présents dans les observations SMTP Orange, avec code, catégorie, nombre d’observations et action. Les DSN déclaratifs ne sont pas transformés en preuves de filtrage Orange. Aucune adresse Bcc ni réponse brute n’est ajoutée à l’agrégat. `lastSmtpObservationAt` indique la date de la dernière preuve disponible. `inboxPlacement` reste null, y compris après acceptation SMTP. Les alertes existantes de rejets et de files lentes bénéficient de cette distinction par fournisseur ; un faible volume ne produit pas un pourcentage trompeur.
 
+La période filtre les messages selon leur date de soumission ; chaque destinataire est compté une fois selon son dernier état conservé. Ce n’est pas un total de toutes les tentatives SMTP. Consulter le suivi du message et ses événements pour l’historique des reports puis des acceptations. Un code OFR dans un texte d’acceptation 2xx n’est pas interprété comme un rejet.
+
 Les pages officielles consultées documentent les incidents ; cette intégration ne prétend pas disposer d’un score Orange, d’une API de classement en boîte principale ou d’une boucle de plaintes Orange non vérifiée. Sources : [Orange](https://postmaster.orange.fr/index.html), [Free](https://postmaster.free.fr/), [La Poste](https://postmaster.laposte.net/kb/fr/delivrabilite-et-erreurs-547184). Le portail SFR était inaccessible lors de la consultation : ses règles propres restent à vérifier.
 
 ## Régulation des envois ordinaires

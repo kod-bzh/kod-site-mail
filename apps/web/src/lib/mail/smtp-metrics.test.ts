@@ -17,6 +17,7 @@ it("interprets explicit OFR suffixes only from an observed Orange SMTP reply", (
   expect(orangeDiagnostic("orange_wanadoo", { source: "dsn", smtpReply: "550 OFR_506" })).toBeNull();
   expect(orangeDiagnostic("google_mx", { source: "smtp", smtpReply: "550 OFR_506" })).toBeNull();
   expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "550 Address contains 506" })).toBeNull();
+  expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "250 Accepted with reference OFR_506" })).toBeNull();
 });
 it("keeps absent French metrics and inbox placement unknown, with organization/domain query isolation", async () => {
   mocks.find.mockResolvedValue([]);
