@@ -71,6 +71,18 @@ class ReportIntakeTest(unittest.TestCase):
         self.assertEqual(intake.extract_reports(payload(message, "other@example.org"), [{"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"], "targetRef": "f" * 64}]), [])
         self.assertEqual(intake.extract_reports(payload(message, "user@example.org"), [{"address": "user@example.org", "domain": "example.org", "kinds": ["feedback"], "targetRef": "f" * 64}]), [])
 
+    def test_invalid_aggregate_is_a_scoped_diagnostic_not_a_global_failure(self):
+        message = EmailMessage()
+        message.set_content("Report fixture")
+        message.add_attachment(b"<feedback/>", maintype="application", subtype="xml", filename="empty.xml")
+        events = intake.extract_reports(payload(message), [{"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"], "targetRef": "f" * 64}])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "invalid_report")
+        self.assertEqual(events[0]["address"], "dmarc@example.org")
+        self.assertNotIn("report", events[0])
+        namespaced = xml().replace(b"<feedback>", b'<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">')
+        self.assertEqual(intake.parse_aggregate(namespaced, "report.xml")["sourcesJson"][0]["count"], 2)
+
     def test_xml_entities_bombs_and_foreign_domains(self):
         with self.assertRaises(ValueError):
             intake.parse_aggregate(b'<!DOCTYPE x [<!ENTITY leak SYSTEM "file:///etc/passwd">]>' + xml(), "report.xml")
@@ -112,6 +124,9 @@ class ReportIntakeTest(unittest.TestCase):
         self.assertEqual(events[0]["kind"], "mdn")
         self.assertEqual(events[0]["verifiedDomains"], [])
         self.assertNotIn("SECRET", json.dumps(events))
+        authenticated = payload(message, "sender@example.org")
+        authenticated["context"]["sasl"] = {"login": "recipient@example.net"}
+        self.assertEqual(intake.extract_reports(authenticated, [{"address": "sender@example.org", "domain": "example.org", "kinds": ["feedback"], "targetRef": "f" * 64}])[0]["kind"], "mdn")
 
 if __name__ == "__main__":
     unittest.main()

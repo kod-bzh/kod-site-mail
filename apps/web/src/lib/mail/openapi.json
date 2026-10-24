@@ -1270,13 +1270,18 @@
                     "type": "array",
                     "items": {
                       "enum": [
+                        "email.accepted",
+                        "email.failed",
+                        "email.deferred",
+                        "email.bounced",
                         "email.complaint",
                         "email.mdn",
                         "deliverability.incident.opened",
                         "deliverability.incident.resolved"
                       ]
                     },
-                    "description": "Opt-in facultatif, requiert deliverability:read. Les événements SMTP historiques sont conservés."
+                    "description": "Liste explicite = filtre exact. Sans champ eventTypes, les quatre événements SMTP historiques sont abonnés par défaut. Les nouveaux types nécessitent deliverability:read.",
+                    "minItems": 1
                   }
                 },
                 "required": [

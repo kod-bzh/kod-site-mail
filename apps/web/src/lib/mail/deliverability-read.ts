@@ -57,15 +57,16 @@ export async function domainHealth(organizationId: string, domain: string) {
 export async function reputation(organizationId: string, domain: string, range: { start: Date; end: Date }) {
   const connectors = await prisma.mailConnector.findMany({ where: { organizationId, domain } });
   const observations = await prisma.mailObservation.findMany({ where: { organizationId, domain, provider: { not: "dns" },
-    periodEnd: { gt: range.start }, periodStart: { lt: range.end } }, orderBy: [{ periodStart: "desc" }, { id: "desc" }], take: 1000 });
-  return { domain, period: range, smtp: await smtpMetrics(organizationId, domain, range.start, range.end), providers: PROVIDERS.filter(provider => provider !== "dns").map(provider => {
+    periodEnd: { gt: range.start }, periodStart: { lt: range.end } }, orderBy: [{ periodStart: "desc" }, { id: "desc" }], take: 1001 });
+  const truncated = observations.length > 1000;
+  return { domain, period: range, truncated, smtp: await smtpMetrics(organizationId, domain, range.start, range.end), providers: PROVIDERS.filter(provider => provider !== "dns").map(provider => {
     const connector = connectorPublic(connectors.find(row => row.provider === provider) ?? null, provider);
-    const values = observations.filter(row => row.provider === provider);
+    const values = observations.slice(0, 1000).filter(row => row.provider === provider);
     return { ...connector, scope: provider === "microsoft_snds" || provider === "blocklists" ? "ip" : "domain",
-      availability: values.length ? "available" : "unknown", metrics: values.length ? values.map(row => ({ source: row.source, scope: row.scope,
+      availability: values.length ? "available" : "unknown", coverageCompleteness: truncated ? "partial_query_limit" : "observed_provider_data_only", metrics: values.length ? values.map(row => ({ source: row.source, scope: row.scope,
         period: { start: row.periodStart, end: row.periodEnd }, observedAt: row.observedAt, fetchedAt: row.fetchedAt,
         freshness: Date.now() - row.periodEnd.getTime() < 72 * 3600_000 ? "fresh" : "stale", evidenceRef: row.id, values: row.data })) : null,
-      absenceReason: values.length ? null : connector.reason ?? "no_observations_for_period" };
+      absenceReason: values.length ? null : truncated ? "query_result_truncated_reduce_period" : connector.reason ?? "no_observations_for_period" };
   }), notice: "Aucune métrique, inscription ou acceptation SMTP ne garantit l’arrivée hors spam. Les statistiques ne sont pas des plaintes attribuables à une personne." };
 }
 export async function dmarcSummary(organizationId: string, domain: string, range: { start: Date; end: Date }) {

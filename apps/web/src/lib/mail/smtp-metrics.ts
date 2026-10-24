@@ -33,8 +33,8 @@ export async function smtpMetrics(organizationId: string, domain: string, start:
     availability: messages.length ? "available" : "unknown", observedAt: new Date(), fetchedAt: new Date(),
     absenceReason: messages.length ? null : "no_messages_observed_for_period", minimumRateVolume: minimum,
     providers: messages.length ? Object.entries(result).map(([provider, value]) => ({ provider, ...value,
-      rejectionRate: { value: value.observedRecipients >= minimum ? value.failed / value.observedRecipients : null,
-        numerator: value.failed, denominator: value.observedRecipients, absenceReason: value.observedRecipients >= minimum ? null : "insufficient_observed_volume",
+      rejectionRate: { value: messages.length <= 10000 && value.observedRecipients >= minimum ? value.failed / value.observedRecipients : null,
+        numerator: value.failed, denominator: value.observedRecipients, absenceReason: messages.length > 10000 ? "message_observation_limit_reached" : value.observedRecipients >= minimum ? null : "insufficient_observed_volume",
         description: "Rejets parmi les destinataires avec observation SMTP KOD ; les inconnus et DSN déclaratifs sont hors dénominateur." },
       evidenceRef: `/api/v1/mail/domains/${encodeURIComponent(domain)}/reputation`, inboxPlacement: null, humanReading: null })) : null };
 }

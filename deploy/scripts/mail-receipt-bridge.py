@@ -253,7 +253,7 @@ def serve():
                         try:
                             reports.ingest(json.loads(prefix))
                         except (ValueError, KeyError, TypeError):
-                            reports.fail("invalid_report")
+                            reports.reject(json.loads(prefix))
                             print("Rejected malformed structured report; content not retained", flush=True)
                     return self.reply(200, {"action": "accept"})
                 if self.path == "/events":

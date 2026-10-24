@@ -71,7 +71,7 @@ Cet exemple est illustratif ; reason et state réels doivent être lus dans la r
 
 Abonnement aux nouveaux événements :
 ```json
-{"url":"https://md2.example/webhooks/kod","eventTypes":["email.complaint","email.mdn","deliverability.incident.opened","deliverability.incident.resolved"]}
+{"url":"https://md2.example/webhooks/kod","eventTypes":["email.accepted","email.failed","email.deferred","email.bounced","email.complaint","email.mdn","deliverability.incident.opened","deliverability.incident.resolved"]}
 ```
 
 Exemple simulé de MDN reçu :
@@ -90,3 +90,5 @@ Exemple simulé d’ouverture d’incident :
 ```json
 {"id":"incident-event-id","type":"deliverability.incident.opened","occurredAt":"2026-10-24T10:02:00Z","receivedAt":"2026-10-24T10:02:01Z","source":"kod_monitor","scope":"domain","reliability":"observed","data":{"domain":"mail.d2-group.fr","trackingId":null,"recipient":null,"details":{"incidentId":"incident-id","code":"collector:google_postmaster","status":"open","summary":"Collecte indisponible","action":"Renouveler l’autorisation et contrôler la dernière réussite.","evidence":{"lastSuccessAt":null}}}}
 ```
+
+Les filtres de webhook sont exacts lorsqu’une liste eventTypes est fournie. Pour recevoir les huit types, fournir les quatre événements SMTP et les quatre nouveaux types. L’absence du champ conserve les quatre événements SMTP historiques. Une liste explicite vide est refusée. Les rapports invalides sont diagnostiqués seulement pour leur boîte/domaine destinataire ; ils ne rendent pas le relais global défaillant. Un agrégat sans record reste invalide selon la RFC 9990, section 3.1.1.2 ; les espaces de noms DMARC actuels et historiques sont pris en charge.

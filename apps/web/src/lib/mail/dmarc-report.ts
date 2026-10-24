@@ -41,10 +41,21 @@ export async function parseDmarcReport(buffer: Buffer, filename: string, expecte
     if (depth > 32 || depth < 0) throw Error("Profondeur XML invalide");
   }
   if (XMLValidator.validate(xml) !== true) throw Error("XML illisible");
-  const feedback = new XMLParser({ ignoreAttributes: true, processEntities: false, parseTagValue: false, isArray: (name, path) => name === "record" || String(path).endsWith("auth_results.dkim") || String(path).endsWith("auth_results.spf") }).parse(xml)?.feedback;
+  const allowedNamespaces = new Set(["urn:ietf:params:xml:ns:dmarc-2.0", "urn:ietf:params:xml:ns:dmarc", "http://dmarc.org/dmarc-xml/0.1"]);
+  const namespaces = new Map<string, string>();
+  for (const declaration of xml.matchAll(/\bxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*["']([^"']+)["']/g)) {
+    const prefix = declaration[1] ?? "", uri = declaration[2];
+    if (namespaces.has(prefix) && namespaces.get(prefix) !== uri) throw Error("Redéfinition d’espace XML non prise en charge");
+    namespaces.set(prefix, uri);
+  }
+  if (namespaces.has("") && !allowedNamespaces.has(namespaces.get("")!)) throw Error("Espace XML DMARC non pris en charge");
+  const feedback = new XMLParser({ ignoreAttributes: true, processEntities: false, parseTagValue: false,
+    transformTagName: name => { const colon = name.indexOf(":"); return colon > 0 && allowedNamespaces.has(namespaces.get(name.slice(0, colon)) ?? "") ? name.slice(colon + 1) : name; },
+    isArray: (name, path) => name === "record" || String(path).endsWith("auth_results.dkim") || String(path).endsWith("auth_results.spf") }).parse(xml)?.feedback;
   if (!feedback || String(feedback.policy_published?.domain ?? "").toLowerCase() !== expectedDomain.toLowerCase()) throw Error("Le rapport ne concerne pas ce domaine");
   const records = (feedback.record ?? []) as { row?: { source_ip?: string; count?: string; policy_evaluated?: { dkim?: string; spf?: string; disposition?: string } }; auth_results?: { dkim?: { domain?: string; result?: string; selector?: string }[]; spf?: { domain?: string; result?: string; scope?: string }[] }; identifiers?: { header_from?: string } }[];
-  if (!records.length || records.length > 10_000) throw Error("Trop de lignes dans le rapport");
+  // RFC 9990 section 3.1.1.2 requires at least one record.
+  if (!records.length || records.length > 10_000) throw Error("Nombre de lignes DMARC invalide");
   const sources = records.map(record => {
     const count = Number(record.row?.count); const ip = String(record.row?.source_ip ?? "");
     if (!Number.isSafeInteger(count) || count < 0 || count > 100_000_000 || !isIP(ip)) throw Error("Compteur ou IP invalide");

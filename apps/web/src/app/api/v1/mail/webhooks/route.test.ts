@@ -30,3 +30,14 @@ it("rejects unsafe callback destinations and bounds subscriptions", async () => 
   mocks.resolve.mockRejectedValueOnce(Error("private destination")); expect((await POST(request())).status).toBe(400);
   mocks.count.mockResolvedValue(5); expect((await POST(request())).status).toBe(409);
 });
+
+it("keeps legacy defaults and accepts exact filters, requiring the dedicated scope only for new types", async () => {
+  const filtered = (eventTypes: string[]) => new Request("https://kod.bzh/api/v1/mail/webhooks", { method: "POST", body: JSON.stringify({ url: "https://example.com/hooks", eventTypes }) });
+  mocks.scope.mockImplementation((_actor, scope) => scope === "mail:send");
+  expect((await POST(filtered(["email.mdn"]))).status).toBe(403);
+  expect((await POST(filtered(["email.accepted"]))).status).toBe(201);
+  expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventTypes: ["email.accepted"] }) }));
+  expect((await POST(filtered([]))).status).toBe(400);
+  mocks.scope.mockReturnValue(true); expect((await POST(filtered(["email.mdn"]))).status).toBe(201);
+  expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventTypes: ["email.mdn"] }) }));
+});

@@ -20,6 +20,11 @@ DO $$ BEGIN
  END;
 END $$;
 INSERT INTO "MailWebhook" (id,"organizationId","initiatorId",url,"secretCipher") VALUES ('hook-a','fixture-a','key-a','https://example.net/hook','fixture-no-secret');
+INSERT INTO "MailWebhook" (id,"organizationId","initiatorId",url,"secretCipher","eventTypes") VALUES ('hook-mdn-only','fixture-a','key-a','https://example.net/mdn','fixture-no-secret',ARRAY['email.mdn']);
+DO $$ BEGIN
+ IF (SELECT count(*) FROM "MailWebhook" WHERE "organizationId"='fixture-a' AND "initiatorId"='key-a' AND (cardinality("eventTypes")=0 OR 'email.accepted'=ANY("eventTypes")))<>1 THEN RAISE EXCEPTION 'Exact delivery webhook filter failed'; END IF;
+ IF (SELECT count(*) FROM "MailWebhook" WHERE "organizationId"='fixture-a' AND 'email.mdn'=ANY("eventTypes"))<>1 THEN RAISE EXCEPTION 'Exact telemetry webhook filter failed'; END IF;
+END $$;
 INSERT INTO "MailWebhookAttempt" (id,"webhookId","telemetryEventId") VALUES ('attempt-a','hook-a','stable-event');
 INSERT INTO "MailWebhookAttempt" (id,"webhookId","telemetryEventId") VALUES ('attempt-duplicate','hook-a','stable-event') ON CONFLICT DO NOTHING;
 DO $$ BEGIN

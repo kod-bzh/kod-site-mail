@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const DELIVERY_EVENT_TYPES = ["email.accepted", "email.failed", "email.deferred", "email.bounced"] as const;
 export const TELEMETRY_TYPES = ["email.complaint", "email.mdn", "deliverability.incident.opened", "deliverability.incident.resolved"] as const;
+export const MAIL_WEBHOOK_TYPES = [...DELIVERY_EVENT_TYPES, ...TELEMETRY_TYPES] as const;
 export const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export type Tx = Prisma.TransactionClient;
 export async function appendTelemetry(tx: Tx, input: {

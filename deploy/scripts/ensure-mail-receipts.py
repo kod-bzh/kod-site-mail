@@ -42,7 +42,7 @@ def configure():
             jmap([[kind + "/set", {"create": {"kod-receipts": desired}}, "s"]])
     # Dedicated incoming intake before encryption. Never modifies or rejects messages.
     incoming = {"url": "http://127.0.0.1:8791/reports", "stages": {"data": True},
-                "enable": {"else": "is_empty(authenticated_as)"}, "tempFailOnError": False,
+                "enable": {"else": "true"}, "tempFailOnError": False,
                 "timeout": 5000, "maxResponseSize": 4096,
                 "httpAuth": {"@type": "Bearer", "bearerToken": {"@type": "Value", "secret": secret}}, "httpHeaders": {}}
     rows = jmap([["x:MtaHook/query", {}, "q"], ["x:MtaHook/get", {"#ids": {"resultOf": "q", "name": "x:MtaHook/query", "path": "/ids"}}, "g"]])

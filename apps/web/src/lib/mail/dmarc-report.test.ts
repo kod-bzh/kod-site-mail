@@ -28,3 +28,10 @@ it("deduplicates a report independently of filename/compression and preserves ra
   expect(first.sourcesJson[1].dkimAlignment).toBe("fail");
   await expect(parseDmarcReport(Buffer.from(xml.replace('1792108800', '1792022400')), "invalid.xml", "mail.d2-group.fr")).rejects.toThrow(/Période/);
 });
+
+it("supports RFC 9990 default and prefixed namespaces and rejects an aggregate without required records", async () => {
+  for (const input of [xml.replace('<feedback>', '<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">'), xml.replace(/<(\/?)([a-z_]+)/g, '<$1d:$2').replace('<d:feedback>', '<d:feedback xmlns:d="urn:ietf:params:xml:ns:dmarc-2.0">')]) {
+    expect((await parseDmarcReport(Buffer.from(input), "report.xml", "mail.d2-group.fr")).totalCount).toBe(5);
+  }
+  await expect(parseDmarcReport(Buffer.from(xml.replace(/<record>[\s\S]*?<\/record>/g, "")), "empty.xml", "mail.d2-group.fr")).rejects.toThrow(/lignes/);
+});

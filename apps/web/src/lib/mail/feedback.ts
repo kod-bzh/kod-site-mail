@@ -4,12 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { appendTelemetry, digest, setIncident } from "./telemetry";
 import { downloadReportBlob, listFeedbackMessages, markFeedbackProcessed } from "@/lib/stalwart/client";
 
+export class InvalidStructuredReport extends Error { readonly code = "invalid_structured_report"; }
 export function reportFields(text: string): Record<string, string> {
-  if (Buffer.byteLength(text) > 256_000 || text.includes("\0")) throw Error("Rapport structuré trop volumineux");
+  if (Buffer.byteLength(text) > 256_000 || text.includes("\0")) throw new InvalidStructuredReport("Rapport structuré trop volumineux");
   const values: Record<string, string> = Object.create(null);
   for (const line of text.replace(/\r\n/g, "\n").replace(/\n[ \t]+/g, " ").split("\n")) {
     const match = line.match(/^([a-zA-Z][a-zA-Z0-9-]*):[ \t]*(.*)$/); if (!match) continue;
-    const name = match[1].toLowerCase(); if (name in values) throw Error("Champ structuré ambigu");
+    const name = match[1].toLowerCase(); if (name in values) throw new InvalidStructuredReport("Champ structuré ambigu");
     values[name] = match[2].trim();
   }
   return values;
@@ -86,17 +87,35 @@ export async function ingestFeedback(input: { organizationId: string; domain: st
     source: input.kind === "mdn" ? "rfc8098" : provider, reliability, occurredAt: input.receivedAt,
     data: { ...data, evidenceRef: `feedback:${id}`, rfcMessageId: report.rfcMessageId } }));
 }
+export async function resolveFeedbackDomain(input: { organizationId: string; accountId: string; domains: string[]; fallbackDomain: string; kind: "mdn" | "arf"; content: string; originalHeaders?: string }) {
+  const report = input.kind === "mdn" ? parseMdn(input.content) : parseArf(input.content, input.originalHeaders ?? "");
+  if (!report?.rfcMessageId) return input.fallbackDomain;
+  const original = await prisma.outboundMessage.findFirst({ where: { organizationId: input.organizationId, rfcMessageId: report.rfcMessageId,
+    ...(input.kind === "mdn" ? { accountId: input.accountId } : {}) }, select: { fromAddress: true } });
+  const domain = original?.fromAddress?.split("@")[1];
+  return domain && input.domains.includes(domain) ? domain : input.fallbackDomain;
+}
+
 export async function pollFeedbackReports() {
   // Monitor requested MDNs plus explicitly configured feedback inboxes, never general copies of all mail.
   const messages = await prisma.outboundMessage.findMany({ where: { createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } },
     distinct: ["organizationId", "accountId", "fromAddress"], select: { organizationId: true, accountId: true, fromAddress: true } });
-  const accounts = new Map(messages.map(row => [`${row.organizationId}:${row.accountId}`, { organizationId: row.organizationId, accountId: row.accountId, domain: row.fromAddress.split("@")[1] }]));
+  const accounts = new Map<string, { organizationId: string; accountId: string; domains: Set<string>; fallbackDomain: string }>();
+  for (const row of messages) {
+    const key = `${row.organizationId}:${row.accountId}`, domain = row.fromAddress.split("@")[1];
+    const account = accounts.get(key) ?? { organizationId: row.organizationId, accountId: row.accountId, domains: new Set<string>(), fallbackDomain: domain };
+    account.domains.add(domain); accounts.set(key, account);
+  }
   const connectors = await prisma.mailConnector.findMany({ where: { provider: { in: ["yahoo_cfl", "microsoft_jmrp"] }, state: { not: "not_configured" } } });
   for (const connector of connectors) {
     const settings = connector.settings as { mailboxId?: string } | null;
     if (!settings?.mailboxId) continue;
-    const box = await prisma.mailbox.findFirst({ where: { id: settings.mailboxId, organizationId: connector.organizationId, domain: { fqdn: connector.domain } } });
-    if (box?.stalwartAccountId) accounts.set(`${box.organizationId}:${box.stalwartAccountId}`, { organizationId: box.organizationId, domain: connector.domain, accountId: box.stalwartAccountId });
+    const box = await prisma.mailbox.findFirst({ where: { id: settings.mailboxId, organizationId: connector.organizationId } });
+    if (box?.stalwartAccountId) {
+      const key = `${box.organizationId}:${box.stalwartAccountId}`;
+      const account = accounts.get(key) ?? { organizationId: box.organizationId, accountId: box.stalwartAccountId, domains: new Set<string>(), fallbackDomain: box.address.split("@")[1] };
+      account.domains.add(connector.domain); account.fallbackDomain = box.address.split("@")[1]; accounts.set(key, account);
+    }
   }
   for (const account of accounts.values()) {
     const id = `feedback:${account.organizationId}:${account.accountId}`;
@@ -111,7 +130,12 @@ export async function pollFeedbackReports() {
           const original = report.parts.find(row => ["text/rfc822-headers", "message/rfc822"].includes(row.type ?? ""));
           const originalHeaders = original && (original.size ?? 0) <= 128_000 ? (await downloadReportBlob(account.accountId, original.blobId!)).toString("utf8").split(/\r?\n\r?\n/)[0] : "";
           const verifiedDomains = report.size <= 2_000_000 ? await verifiedDkimDomains(await downloadReportBlob(account.accountId, report.blobId)) : [];
-          try { await ingestFeedback({ ...account, sourceId: `${account.accountId}:${report.id}:${part.blobId}`, receivedAt: new Date(report.receivedAt), kind: part.type === "message/disposition-notification" ? "mdn" : "arf", content, originalHeaders, verifiedDomains }); }
+          try {
+            const kind = part.type === "message/disposition-notification" ? "mdn" : "arf";
+            const domain = await resolveFeedbackDomain({ ...account, domains: [...account.domains], kind, content, originalHeaders });
+            await ingestFeedback({ organizationId: account.organizationId, accountId: account.accountId, domain,
+              sourceId: `${account.accountId}:${report.id}:${part.blobId}`, receivedAt: new Date(report.receivedAt), kind, content, originalHeaders, verifiedDomains });
+          }
           catch (error) { if (!(error instanceof Error) || !/structuré|ambigu/.test(error.message)) throw error; }
         }
         await markFeedbackProcessed(account.accountId, report.id);

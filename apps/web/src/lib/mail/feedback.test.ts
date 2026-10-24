@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({ original: vi.fn(), connector: vi.fn(), append: vi.fn(), incident: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { outboundMessage: { findFirst: mocks.original }, mailConnector: { findUnique: mocks.connector }, $transaction: (fn: (tx: object) => unknown) => fn({}) } }));
 vi.mock("./telemetry", async original => ({ ...await original<object>(), appendTelemetry: mocks.append, setIncident: mocks.incident }));
-import { ingestFeedback, parseMdn, parseArf, verifiedDkimDomains } from "./feedback";
+import { ingestFeedback, parseMdn, parseArf, verifiedDkimDomains, resolveFeedbackDomain } from "./feedback";
 const mdn = 'Original-Message-ID: <opaque@example.org>\r\nFinal-Recipient: rfc822; recipient@example.net\r\nDisposition: manual-action/MDN-sent-manually; displayed\r\n';
 beforeEach(() => { vi.clearAllMocks(); mocks.original.mockResolvedValue({ id: "message-a", organizationId: "org-a", initiatorId: "key-a", requestReadReceipt: true,
   recipients: { to: ["recipient@example.net"], cc: [], bcc: ["hidden@example.net"] } }); mocks.connector.mockResolvedValue(null); mocks.append.mockResolvedValue(true); });
@@ -51,4 +51,14 @@ it("surfaces an authenticated uncorrelatable complaint as an inbox incident with
   await ingestFeedback({ organizationId: "org-a", domain: "example.org", accountId: "reports", sourceId: "anonymous", receivedAt: new Date(), kind: "arf",
     content: 'Feedback-Type: abuse\r\nVersion: 1', originalHeaders: '', verifiedDomains: ["arf.mail.yahoo.com"] });
   expect(mocks.append).not.toHaveBeenCalled(); expect(mocks.incident).toHaveBeenCalledWith(expect.objectContaining({ code: "unmatched_feedback:yahoo_cfl", evidence: expect.objectContaining({ scope: "monitored_inbox" }) }));
+});
+
+it("resolves each MDN against its actual sender when multiple domains share an account", async () => {
+  const domains = ["first.example", "second.example"];
+  for (const domain of domains) {
+    mocks.original.mockResolvedValue({ fromAddress: `sender@${domain}` });
+    expect(await resolveFeedbackDomain({ organizationId: "org-a", accountId: "shared", domains, fallbackDomain: "second.example", kind: "mdn", content: mdn })).toBe(domain);
+  }
+  mocks.original.mockResolvedValue({ fromAddress: "sender@unrelated.example" });
+  expect(await resolveFeedbackDomain({ organizationId: "org-a", accountId: "shared", domains, fallbackDomain: "second.example", kind: "mdn", content: mdn })).toBe("second.example");
 });

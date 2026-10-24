@@ -372,7 +372,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       if (messageId) {
         if (records[0].submissionId && records[0].nextCheckAt <= new Date()) await refreshOutbound(records[0].id);
         const message = await prisma.outboundMessage.findUnique({ where: { id: records[0].id }, omit: { accountId: true, initiatorId: true, leaseUntil: true },
-          include: { events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
+          include: { telemetryEvents: { orderBy: { receivedAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, source: true, reliability: true, occurredAt: true, receivedAt: true, data: true } }, events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
         return ok({ message: message ? safeMessage(message) : null, notice: DELIVERY_NOTICE });
       }
       return ok({ messages: records.map(safeMessage), notice: DELIVERY_NOTICE });

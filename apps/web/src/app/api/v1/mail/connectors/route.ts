@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     else if (body.credentials !== undefined) throw Error("Credentials not supported");
     if (["microsoft_jmrp", "yahoo_cfl"].includes(body.provider)) {
       if (!body.settings?.mailboxId || !body.settings.enrollmentVerifiedAt || !body.expiresAt) throw Error("Enrollment proof/expiry required");
-      const mailbox = await prisma.mailbox.findFirst({ where: { id: body.settings.mailboxId, organizationId: org.organizationId, domain: { fqdn: body.domain } } });
+      const mailbox = await prisma.mailbox.findFirst({ where: { id: body.settings.mailboxId, organizationId: org.organizationId } });
       if (!mailbox?.stalwartAccountId) throw Error("Mailbox not authorized");
     }
     const data = { settings: body.settings, ...(credentials ? { secretCipher: secretConfiguration(credentials) } : {}),

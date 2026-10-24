@@ -31,18 +31,20 @@ export async function collectGraphDmarc(connector: MailConnector, credentials: z
         if (await prisma.dmarcReport.findUnique({ where: { id: sourceId } })) continue;
         const file = await get(`${root}/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(attachment.id)}`);
         if (file["@odata.type"] !== "#microsoft.graph.fileAttachment" || typeof file.contentBytes !== "string" || file.contentBytes.length > 2_666_668) continue;
+        let report;
         try {
-          const report = await parseDmarcReport(Buffer.from(file.contentBytes, "base64"), attachment.name, connector.domain);
-          const semanticKey = digest([connector.organizationId, report.semanticKey]);
-          await prisma.dmarcReport.upsert({ where: { semanticKey }, create: { ...report, semanticKey, id: sourceId,
-            organizationId: connector.organizationId, mailboxId: connector.id, sourceMessageId: digest(message.id), sourceReceivedAt: new Date(message.receivedDateTime), provenance: "authorized_graph_mailbox_unverified_report" }, update: {} });
-          count++;
+          report = await parseDmarcReport(Buffer.from(file.contentBytes, "base64"), attachment.name, connector.domain);
         } catch {
           // Keep a bounded diagnostic, never attachment content or vendor-controlled exception text.
           await prisma.dmarcReport.upsert({ where: { id: sourceId }, create: { id: sourceId, organizationId: connector.organizationId,
             mailboxId: connector.id, sourceMessageId: digest(message.id), filename: "invalid-dmarc-report", reportedDomain: connector.domain,
             provenance: "authorized_graph_mailbox_unverified_report", error: "Rapport invalide, mauvais domaine ou limites dépassées" }, update: {} });
+          continue;
         }
+        const semanticKey = digest([connector.organizationId, report.semanticKey]);
+        await prisma.dmarcReport.upsert({ where: { semanticKey }, create: { ...report, semanticKey, id: sourceId,
+          organizationId: connector.organizationId, mailboxId: connector.id, sourceMessageId: digest(message.id), sourceReceivedAt: new Date(message.receivedDateTime), provenance: "authorized_graph_mailbox_unverified_report" }, update: {} });
+        count++;
       }
     }
     next = messages["@odata.nextLink"];

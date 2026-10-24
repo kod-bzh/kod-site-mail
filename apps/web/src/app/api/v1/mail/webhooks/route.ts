@@ -1,4 +1,4 @@
-import { TELEMETRY_TYPES } from "@/lib/mail/telemetry";
+import { TELEMETRY_TYPES, MAIL_WEBHOOK_TYPES } from "@/lib/mail/telemetry";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { resolveV1ActorFromRequest, resolveActorOrganizationId, actorHasScope } from "@/lib/api/v1-auth";
@@ -26,10 +26,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const scope = await owner(req); if (scope.error) return scope.error;
   let url: string, eventTypes: string[];
-  try { const body = z.object({ url: z.string().max(2048), eventTypes: z.array(z.enum(TELEMETRY_TYPES)).max(4).optional() }).strict().parse(JSON.parse(await readLimitedBody(req, 4096)));
+  try { const body = z.object({ url: z.string().max(2048), eventTypes: z.array(z.enum(MAIL_WEBHOOK_TYPES)).min(1).max(8).optional() }).strict().parse(JSON.parse(await readLimitedBody(req, 4096)));
     url = body.url; eventTypes = [...new Set(body.eventTypes ?? [])]; await resolveWebhook(url); }
   catch { return Response.json({ error: "invalid_webhook_url", detail: "URL HTTPS publique requise sur le port 443" }, { status: 400 }); }
-  if (eventTypes.length && !actorHasScope(scope.actor, DELIVERABILITY_READ_SCOPE)) return Response.json({ error: "forbidden", requiredScope: DELIVERABILITY_READ_SCOPE }, { status: 403 });
+  if (eventTypes.some(type => (TELEMETRY_TYPES as readonly string[]).includes(type)) && !actorHasScope(scope.actor, DELIVERABILITY_READ_SCOPE)) return Response.json({ error: "forbidden", requiredScope: DELIVERABILITY_READ_SCOPE }, { status: 403 });
   const allowedDomains = scope.actor.allowedMailDomains ?? [];
   const signingSecret = "whsec_" + randomBytes(32).toString("base64url");
   try {

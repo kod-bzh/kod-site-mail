@@ -53,7 +53,10 @@ export async function ingestReceipt(event: DeliveryReceipt): Promise<boolean> {
       where: { organizationId_address: { organizationId: record.organizationId, address: recipient } },
       create: { organizationId: record.organizationId, address: recipient, reason: "hard_bounce", source: event.type === "mail.bounced" ? "dsn_report" : "smtp_receipt" }, update: {},
     });
-    const hooks = await tx.mailWebhook.findMany({ where: { organizationId: record.organizationId, initiatorId: record.initiatorId }, select: { id: true } });
+    const eventType = event.type.replace(/^smtp\./, "email.").replace(/^mail\./, "email.");
+    const hooks = await tx.mailWebhook.findMany({ where: { organizationId: record.organizationId, initiatorId: record.initiatorId,
+      AND: [{ OR: [{ eventTypes: { isEmpty: true } }, { eventTypes: { has: eventType } }] },
+        { OR: [{ allowedDomains: { isEmpty: true } }, { allowedDomains: { has: record.fromAddress.split("@")[1] } }] }] }, select: { id: true } });
     if (hooks.length) await tx.mailWebhookAttempt.createMany({ data: hooks.map(hook => ({ webhookId: hook.id, eventId: event.id })), skipDuplicates: true });
     return true;
   }, { timeout: 15_000 });

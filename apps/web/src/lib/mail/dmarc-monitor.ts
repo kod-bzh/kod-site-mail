@@ -35,20 +35,23 @@ export async function pollDmarcReports(): Promise<void> {
           let buffer: Buffer | null = null;
           // Network failures remain retryable, unlike invalid content.
           if ((attachment.size ?? 0) <= 2_000_000) buffer = await downloadReportBlob(accountId, attachment.blobId!);
+          let data;
           try {
             if (!buffer) throw Error("Rapport trop volumineux");
-            const data = await parseDmarcReport(buffer, attachment.name!, domain);
-            const semanticKey = digest([mailbox.organizationId, data.semanticKey]);
-            await prisma.dmarcReport.upsert({ where: { semanticKey }, create: { ...base, ...data, semanticKey }, update: {} });
+            data = await parseDmarcReport(buffer, attachment.name!, domain);
           } catch (error) {
             await prisma.dmarcReport.create({ data: { ...base, error: (error instanceof Error ? error.message : "Rapport illisible").slice(0, 1000) } });
+            continue;
           }
+          const semanticKey = digest([mailbox.organizationId, data.semanticKey]);
+          // Storage failures propagate to the collector retry, never become invalid-XML diagnostics.
+          await prisma.dmarcReport.upsert({ where: { semanticKey }, create: { ...base, ...data, semanticKey }, update: {} });
         }
         await markDmarcProcessed(accountId, message.id);
       }
       await prisma.mailMonitorState.update({ where: { id }, data: { checkedAt: new Date(), lastError: null } });
-    } catch (error) {
-      await prisma.mailMonitorState.update({ where: { id }, data: { lastError: (error instanceof Error ? error.message : "Lecture indisponible").slice(0, 1000) } });
+    } catch {
+      await prisma.mailMonitorState.update({ where: { id }, data: { lastError: "Collecte DMARC indisponible ; données non confirmées. Réessai prévu sans renvoi d’email." } });
     } finally {
       await prisma.mailMonitorState.update({ where: { id }, data: { leaseUntil: null } });
     }

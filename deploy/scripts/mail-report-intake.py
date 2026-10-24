@@ -38,6 +38,14 @@ def parse_aggregate(data, filename):
     if len(data) > MAX_BYTES or b"\x00" in data or re.search(br"<!DOCTYPE|<!ENTITY", data, re.I):
         raise ValueError("Forbidden XML")
     root = ET.fromstring(data)
+    # RFC 9990 namespace plus legacy reports. Ignore extension namespaces.
+    if root.tag.startswith("{"):
+        namespace = root.tag[1:].split("}", 1)[0]
+        if namespace not in {"urn:ietf:params:xml:ns:dmarc-2.0", "urn:ietf:params:xml:ns:dmarc", "http://dmarc.org/dmarc-xml/0.1"}:
+            raise ValueError("Unsupported report namespace")
+        for node in root.iter():
+            if node.tag.startswith("{" + namespace + "}"):
+                node.tag = node.tag.split("}", 1)[1]
     if root.tag != "feedback":
         raise ValueError("Not a DMARC report")
     def check_depth(node, depth=0):
@@ -140,7 +148,7 @@ def verify_dkim(raw):
 
 def extract_reports(payload, targets):
     context = payload.get("context", {})
-    if context.get("sasl") or str(context.get("stage", "")).lower() != "data":
+    if str(context.get("stage", "")).lower() != "data":
         return []
     recipients = {row.get("address", "").lower() for row in payload.get("envelope", {}).get("to", [])}
     destinations = [target for target in targets if target["address"] in recipients]
@@ -208,7 +216,11 @@ def extract_reports(payload, targets):
                 results.append({**base, "kind": kind, "content": text, "originalHeaders": original})
             elif not part.is_multipart() and "dmarc" in target["kinds"] and (re.search(r"\.(xml|gz|zip)$", name, re.I) or typ in ["application/zip", "application/gzip", "application/xml", "text/xml"]):
                 data = part.get_payload(decode=True) or b""
-                report = parse_aggregate(data, name or "report.xml")
+                try:
+                    report = parse_aggregate(data, name or "report.xml")
+                except (ValueError, ET.ParseError, zipfile.BadZipFile, EOFError, OSError):
+                    results.append({**base, "kind": "invalid_report", "reason": "invalid_dmarc_report", "diagnosticRef": hashlib.sha256(data).hexdigest()})
+                    continue
                 if report["reportedDomain"] == target["domain"]:
                     results.append({**base, "kind": "dmarc", "report": report})
     for row in results:
@@ -232,13 +244,30 @@ class ReportIntake:
     def fail(self, reason):
         self.last_error, self.error_at = reason, time.time()
 
+    def reject(self, payload):
+        recipients = {row.get("address", "").lower() for row in payload.get("envelope", {}).get("to", [])}
+        events = []
+        peer = payload.get("context", {}).get("client", {}).get("ip")
+        ipaddress.ip_address(peer)
+        for target in self.targets:
+            if target["address"] in recipients:
+                event = {"address": target["address"], "targetRef": target["targetRef"], "occurredAt": stamp(),
+                    "peerIp": peer, "verifiedDomains": [],
+                    "kind": "invalid_report", "reason": "invalid_structured_report", "diagnosticRef": canonical_id(payload.get("context", {}).get("queue", {}))}
+                event["id"] = canonical_id({k: v for k, v in event.items() if k != "occurredAt"})
+                events.append(event)
+        self.save(events)
+
+    def save(self, events):
+        with self.store.connection() as db:
+            for event in events:
+                db.execute("INSERT OR IGNORE INTO incoming_reports(id,payload,created,next_retry) VALUES(?,?,?,?)", (event["id"], json.dumps(event), time.time(), time.time()))
+
     def ingest(self, payload):
         if self.last_targets < time.time() - 21600:
             raise RuntimeError("Authorized report targets unavailable")
         events = extract_reports(payload, self.targets)
-        with self.store.connection() as db:
-            for event in events:
-                db.execute("INSERT OR IGNORE INTO incoming_reports(id,payload,created,next_retry) VALUES(?,?,?,?)", (event["id"], json.dumps(event), time.time(), time.time()))
+        self.save(events)
         return len(events)
 
     def forward(self, endpoint, key):

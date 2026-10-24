@@ -71,7 +71,7 @@ export async function pollDeliverability() {
         state = "active"; success = true;
       } else if (["microsoft_jmrp", "yahoo_cfl"].includes(connector.provider) && connector.state !== "not_configured") {
         const settings = connector.settings as { mailboxId?: string; enrollmentVerifiedAt?: string } | null;
-        const box = settings?.mailboxId ? await prisma.mailbox.findFirst({ where: { id: settings.mailboxId, organizationId: connector.organizationId, domain: { fqdn: connector.domain } } }) : null;
+        const box = settings?.mailboxId ? await prisma.mailbox.findFirst({ where: { id: settings.mailboxId, organizationId: connector.organizationId } }) : null;
         if (!box?.stalwartAccountId || !settings?.enrollmentVerifiedAt) throw new ProviderError("authorization_required", "Vérifier l’inscription et la boîte de retour fournisseur");
         const monitor = await prisma.mailMonitorState.findUnique({ where: { id: `feedback:${connector.organizationId}:${box.stalwartAccountId}` } });
         if (!monitor || monitor.lastError || monitor.checkedAt.getTime() < Date.now() - 180_000) throw new ProviderError("error", "Boîte de plaintes non surveillée ou collecte périmée");
