@@ -31,6 +31,11 @@ it("redacts Bcc addresses from recipient maps, nested evidence and hidden recipi
   expect(JSON.stringify(safe).toLowerCase()).not.toContain("hidden@example.net"); expect(JSON.stringify(safe)).not.toContain('"bcc"'); expect(JSON.stringify(safe)).toContain("visible@example.net");
   const literal = safeMessage({ recipients: { bcc: ["hidden+tag@example.net"] }, lastError: "HIDDEN+TAG@EXAMPLE.NET failed; hiddenntag@example.net is another address" });
   expect(literal.lastError).toBe("[hidden] failed; hiddenntag@example.net is another address");
+  const date = new Date("2026-10-24T11:29:56.800Z");
+  const dated = safeMessage({ recipients: { to: ["visible@example.net"] }, requestReadReceipt: true, createdAt: date,
+    telemetryEvents: [{ id: "mdn", type: "email.mdn", recipient: "visible@example.net", occurredAt: date, receivedAt: date }], invalidDate: new Date(NaN) }) as { createdAt: string; readReceipt: { requestedAt: string; receipts: { receivedAt: string }[] }; invalidDate: null };
+  expect(dated.createdAt).toBe(date.toISOString()); expect(dated.readReceipt.requestedAt).toBe(date.toISOString());
+  expect(dated.readReceipt.receipts[0].receivedAt).toBe(date.toISOString()); expect(dated.invalidDate).toBeNull();
 });
 
 it("keeps the real resolution date stable across unchanged checks so retention can expire", async () => {
