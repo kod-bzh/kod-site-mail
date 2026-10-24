@@ -26,6 +26,13 @@ it("keeps absent French metrics and inbox placement unknown, with organization/d
   expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ organizationId: "org-a", fromAddress: { endsWith: "@example.org" } }) }));
   for (const row of result.providers) expect(row).toMatchObject({ availability: "unknown", accepted: null, failed: null, inboxPlacement: null, rejectionRate: { value: null, denominator: null } });
 });
+it("does not turn requested recipients without SMTP evidence into zero acceptances or failures", async () => {
+  mocks.find.mockResolvedValue([{ recipients: { to: ["invoice@free.fr"], cc: [], bcc: [] }, deliveryJson: {}, status: "UNKNOWN" }]);
+  const result = await smtpMetrics("org-a", "example.org", new Date(0), new Date());
+  expect(result.providers.find(row => row.provider === "free")).toMatchObject({ requestedRecipients: 1, observedRecipients: 0,
+    accepted: null, failed: null, unknown: 1, availability: "unknown", diagnostics: null,
+    rejectionRate: { value: null, numerator: null, denominator: null, absenceReason: "no_smtp_observations_for_provider" } });
+});
 it("separates Orange policy evidence from SMTP acceptance and never returns Bcc addresses or raw replies", async () => {
   const observedAt = "2026-10-24T10:00:00Z";
   mocks.find.mockResolvedValue([{ recipients: { to: ["invoice@wanadoo.fr"], cc: [], bcc: ["private@orange.fr"] },
