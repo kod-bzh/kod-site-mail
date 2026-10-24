@@ -14,7 +14,7 @@ Tests Python : parseurs XML/gzip/ZIP bornés, interception native avant chiffrem
 
 PostgreSQL 16 réel dans un pod éphémère sans Service, écoute 127.0.0.1 seulement : contraintes de schéma appliquées, doublon d’événement et de notification neutralisé, corrélation d’un message de l’organisation B vers l’organisation A rejetée par clé étrangère composée, invariant exactement un événement par notification, filtre d’organisation contrôlé. Le pod et ses données ont été supprimés après succès. La CI répète les tests avec les migrations réelles sur PostgreSQL isolé.
 
-Compilation TypeScript, lint/i18n et build Next de production vérifiés pendant l’implémentation. 143 tests TypeScript et 32 tests Python passent après les corrections de revue. La version réellement déployée reste à consigner après déploiement.
+Compilation TypeScript, lint/i18n et build Next de production vérifiés pendant l’implémentation. 144 tests TypeScript et 32 tests Python passent après les corrections de revue. La version réellement déployée reste à consigner après déploiement.
 
 ## Réserves opérationnelles à conserver
 Aucun rapport Google Postmaster API, SNDS, ARF fournisseur ou MDN réel n’a encore été collecté par les nouveaux connecteurs au stade de l’implémentation. Les inscriptions historiques Google ne sont pas une preuve d’accès actuel. L’historique DMARC PGP nécessite une récupération autorisée. Les prochains rapports seront la preuve réelle du chemin natif avant chiffrement, une fois le relais déployé.
@@ -28,3 +28,5 @@ Aucun rapport Google Postmaster API, SNDS, ARF fournisseur ou MDN réel n’a en
 - Résolution d’incident inchangé : date conservée pour permettre la purge à 90 jours.
 - Le constat selon lequel `endsWith('@example.org')` inclurait `shop.example.org` est contredit par la frontière `@` et par un contrôle PostgreSQL ajouté en CI : le filtre correspond à `LIKE '%@example.org'`, qui ne matche pas `sender@shop.example.org`. Aucun élargissement aux sous-domaines.
 - Un agrégat DMARC doit contenir au moins un enregistrement selon RFC 9990 §3.1.1.2. Le parseur conserve cette règle et accepte les espaces de noms actuels et historiques ; un rapport vide reste diagnostiqué, sans incident global.
+
+La preuve de collecte native exclut les rapports importés via Graph/JMAP : son compteur reste null si aucun rapport du hook avant chiffrement n’a été observé. Un heartbeat sain seul ne prouve pas la réception d’un rapport.

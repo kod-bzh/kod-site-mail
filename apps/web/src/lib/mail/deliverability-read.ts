@@ -86,8 +86,9 @@ export async function dmarcSummary(organizationId: string, domain: string, range
     select: { id: true, error: true, sourceReceivedAt: true, createdAt: true, provenance: true }, orderBy: { createdAt: "desc" }, take: 100 });
   const bridge = await prisma.mailMonitorState.findUnique({ where: { id: "incoming-report-bridge" } });
   const total = rows.slice(0, 1000).reduce((n, r) => n + r.totalCount, 0);
+  const nativeRows = rows.slice(0, 1000).filter(row => row.provenance.startsWith("native_inbound"));
   return { domain, unreadableReports: unreadable, nativeIntake: { source: "native_inbound_before_encryption", lastHeartbeatAt: bridge?.checkedAt ?? null,
-    state: bridge && !bridge.lastError && bridge.checkedAt.getTime() > Date.now() - 180000 ? "active" : "unknown", reason: bridge?.lastError ?? null, receivedReportCount: rows.length || null }, scope: "domain", source: "dmarc_aggregate_reports", period: range, availability: rows.length ? "available" : "unknown",
+    state: bridge && !bridge.lastError && bridge.checkedAt.getTime() > Date.now() - 180000 ? "active" : "unknown", reason: bridge?.lastError ?? null, receivedReportCount: nativeRows.length || null, coverage: rows.length > 1000 ? "partial_query_limit" : "observed_native_reports_only" }, scope: "domain", source: "dmarc_aggregate_reports", period: range, availability: rows.length ? "available" : "unknown",
     freshness: rows.length ? Date.now() - Math.max(...rows.map(row => row.periodEnd?.getTime() ?? 0)) < 72 * 3600_000 ? "fresh" : "stale" : "unknown",
     observedAt: rows[0]?.periodEnd ?? null, fetchedAt: rows.length ? new Date(Math.max(...rows.map(row => row.createdAt.getTime()))) : null,
     absenceReason: rows.length ? null : "no_reports_received_for_period", totalCount: rows.length ? total : null, reportCount: rows.length ? Math.min(rows.length, 1000) : null,
