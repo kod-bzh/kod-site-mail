@@ -17,7 +17,8 @@ export async function pollDeliverability() {
   const due = await prisma.mailConnector.findMany({ where: { nextCheckAt: { lte: new Date() }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, orderBy: { nextCheckAt: "asc" }, take: 10 });
   for (const connector of due) {
     const leaseUntil = new Date(Date.now() + 300_000);
-    const claim = await prisma.mailConnector.updateMany({ where: { id: connector.id, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, data: { leaseUntil, lastAttemptAt: new Date() } });
+    const claim = await prisma.mailConnector.updateMany({ where: { id: connector.id, secretCipher: connector.secretCipher, nextCheckAt: connector.nextCheckAt,
+      OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, data: { leaseUntil, lastAttemptAt: new Date() } });
     if (!claim.count) continue;
     let state = connector.state, lastError: string | null = null, success = false, finalized = false;
     try {

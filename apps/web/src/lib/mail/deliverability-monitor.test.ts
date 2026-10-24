@@ -13,9 +13,9 @@ beforeEach(() => {
   vi.clearAllMocks(); stored = { leaseUntil: null, secretCipher: "old-secret", state: "active", nextCheckAt: new Date(0) };
   mocks.db.domain.findMany.mockResolvedValue([]); mocks.db.mailMonitoredDomain.findMany.mockResolvedValue([]);
   mocks.db.domain.findUnique.mockResolvedValue({ id: "domain", organizationId: "org-a", fqdn: "example.org" });
-  mocks.db.mailConnector.findMany.mockResolvedValue([{ id: "connector", organizationId: "org-a", domain: "example.org", provider: "google_postmaster", secretCipher: "old-secret", state: "active", expiresAt: null }]);
+  mocks.db.mailConnector.findMany.mockResolvedValue([{ id: "connector", organizationId: "org-a", domain: "example.org", provider: "google_postmaster", secretCipher: "old-secret", state: "active", expiresAt: null, nextCheckAt: new Date(0) }]);
   mocks.db.mailConnector.updateMany.mockImplementation(async ({ where, data }) => {
-    if (where.OR || where.leaseUntil?.getTime() === stored.leaseUntil?.getTime() && where.secretCipher === stored.secretCipher) {
+    if (where.secretCipher === stored.secretCipher && (where.OR ? where.nextCheckAt?.getTime() === stored.nextCheckAt.getTime() : where.leaseUntil?.getTime() === stored.leaseUntil?.getTime())) {
       Object.assign(stored, data); return { count: 1 };
     }
     return { count: 0 };
@@ -36,4 +36,13 @@ it("does not release or overwrite the lease of a replacement worker", async () =
   const replacementLease = new Date(Date.now() + 600_000);
   mocks.google.mockImplementation(async () => { stored.leaseUntil = replacementLease; return []; });
   await pollDeliverability(); expect(stored.leaseUntil).toBe(replacementLease); expect(stored.state).toBe("active"); expect(mocks.incident).not.toHaveBeenCalled();
+});
+it.each(["new-secret", "old-secret"])("does not claim a stale snapshot after credentials/settings were reconfigured (%s)", async secretCipher => {
+  const snapshot = (await mocks.db.mailConnector.findMany())[0];
+  mocks.db.mailConnector.findMany.mockImplementation(async () => {
+    Object.assign(stored, { secretCipher, leaseUntil: null, state: "insufficient_data", nextCheckAt: new Date() });
+    return [snapshot];
+  });
+  await pollDeliverability(); expect(mocks.google).not.toHaveBeenCalled(); expect(stored.leaseUntil).toBeNull();
+  expect(stored.state).toBe("insufficient_data"); expect(mocks.incident).not.toHaveBeenCalled();
 });
