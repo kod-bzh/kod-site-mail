@@ -63,6 +63,53 @@ class ReportIntakeTest(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertNotIn("SECRET", rows[0][0])
 
+    def test_invalid_json_is_quarantined_using_metadata_and_storage_failures_remain_retryable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = bridge.Store(str(Path(directory) / "receipts.sqlite"))
+            reports = intake.ReportIntake(store)
+            reports.targets = [{"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"], "targetRef": "f" * 64}]
+            reports.last_targets = time.time()
+            metadata = {"envelope": {"to": [{"address": "dmarc@example.org"}]}, "context": {"client": {"ip": "not-an-ip"}, "queue": {"id": "fixture"}}}
+            self.assertEqual(reports.ingest_encoded(b'{"broken":', metadata), 0)
+            self.assertIsNone(reports.last_error)
+            with store.connection() as db:
+                event = json.loads(db.execute("SELECT payload FROM incoming_reports").fetchone()[0])
+            self.assertEqual(event["kind"], "invalid_report")
+            self.assertIsNone(event["peerIp"])
+            self.assertEqual(event["address"], "dmarc@example.org")
+            with patch.object(reports, "save", side_effect=RuntimeError("storage unavailable")):
+                with self.assertRaises(RuntimeError):
+                    reports.ingest_encoded(b'{"broken":', metadata)
+
+    def test_legacy_cache_requires_refresh_and_unbound_queue_is_not_reattributed(self):
+        legacy = {"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"]}
+        with tempfile.TemporaryDirectory() as directory:
+            store = bridge.Store(str(Path(directory) / "receipts.sqlite"))
+            first = intake.ReportIntake(store)
+            with store.connection() as db:
+                db.execute("INSERT OR REPLACE INTO report_targets VALUES(1,?,?)", (json.dumps([legacy]), time.time()))
+            restored = intake.ReportIntake(store)
+            self.assertEqual(restored.targets, [])
+            self.assertEqual(restored.last_targets, 0)
+            self.assertEqual(restored.last_error, "legacy_target_authorization_refresh_required")
+            with self.assertRaises(RuntimeError):
+                restored.ingest({})
+            restored.save([{**legacy, "id": "legacy-event", "kind": "mdn"}])
+            class Response:
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+                def read(self, limit):
+                    return json.dumps({"targets": [{**legacy, "targetRef": "a" * 64}]}).encode()
+            with patch.object(intake.urllib.request, "urlopen", return_value=Response()) as request:
+                restored.forward("https://fixture.test/api/internal/mail/receipts", b"fixture-key")
+            self.assertEqual(request.call_count, 1)  # Signed target refresh only; no report POST.
+            self.assertEqual(restored.last_error, "legacy_unbound_reports")
+            with store.connection() as db:
+                queued = db.execute("SELECT payload,sent FROM incoming_reports").fetchone()
+            self.assertIsNone(queued[1])
+            self.assertNotIn("targetRef", json.loads(queued[0]))
+            self.assertEqual(restored.targets[0]["targetRef"], "a" * 64)
+
     def test_unrelated_recipient_or_normal_invoice_is_never_collected(self):
         message = EmailMessage()
         message["To"] = "user@example.org"

@@ -227,6 +227,9 @@ def extract_reports(payload, targets):
         row["id"] = canonical_id({k: v for k, v in row.items() if k != "occurredAt"})
     return results
 
+def has_target_binding(value):
+    return isinstance(value, dict) and isinstance(value.get("targetRef"), str) and re.fullmatch(r"[a-f0-9]{64}", value["targetRef"]) is not None
+
 class ReportIntake:
     def __init__(self, store):
         self.store = store
@@ -239,16 +242,35 @@ class ReportIntake:
             db.execute("CREATE TABLE IF NOT EXISTS incoming_reports (id TEXT PRIMARY KEY, payload TEXT NOT NULL, created REAL NOT NULL, next_retry REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent REAL)")
             row = db.execute("SELECT payload,fetched FROM report_targets WHERE id=1").fetchone()
             if row and row[1] > time.time() - 21600:
-                self.targets, self.last_targets = json.loads(row[0]), row[1]
+                cached = json.loads(row[0])
+                if isinstance(cached, list) and all(has_target_binding(target) for target in cached):
+                    self.targets, self.last_targets = cached, row[1]
+                else:
+                    # Old caches cannot establish tenant ownership. Force a signed refresh.
+                    self.fail("legacy_target_authorization_refresh_required")
 
     def fail(self, reason):
         self.last_error, self.error_at = reason, time.time()
+
+    def ingest_encoded(self, raw, metadata):
+        try:
+            decoded = json.loads(raw)
+            return self.ingest(decoded)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            # Metadata was already parsed separately, before the untrusted content.
+            # Never parse the same malformed JSON again in the rejection path.
+            self.reject(metadata)
+            return 0
 
     def reject(self, payload):
         recipients = {row.get("address", "").lower() for row in payload.get("envelope", {}).get("to", [])}
         events = []
         peer = payload.get("context", {}).get("client", {}).get("ip")
-        ipaddress.ip_address(peer)
+        try:
+            ipaddress.ip_address(peer)
+        except ValueError:
+            # This is a local diagnostic, never proof of an authenticated peer.
+            peer = None
         for target in self.targets:
             if target["address"] in recipients:
                 event = {"address": target["address"], "targetRef": target["targetRef"], "occurredAt": stamp(),
@@ -290,8 +312,8 @@ class ReportIntake:
         if self.last_targets < time.time() - 60:
             response = request(base + "report-targets", method="GET")
             targets = response["targets"]
-            if len(targets) > 5000:
-                raise ValueError("Target limit")
+            if not isinstance(targets, list) or len(targets) > 5000 or not all(has_target_binding(target) for target in targets):
+                raise ValueError("Invalid authorized target list")
             with self.store.connection() as db:
                 db.execute("INSERT OR REPLACE INTO report_targets VALUES(1,?,?)", (json.dumps(targets), time.time()))
             self.targets, self.last_targets = targets, time.time()
@@ -299,7 +321,15 @@ class ReportIntake:
             rows = db.execute("SELECT id,payload,attempts FROM incoming_reports WHERE sent IS NULL AND next_retry<=? ORDER BY created LIMIT 10", (time.time(),)).fetchall()
         for identifier, payload, attempts in rows:
             try:
-                request(base + "reports", json.dumps({"events": [json.loads(payload)]}, separators=(",", ":")).encode())
+                event = json.loads(payload)
+                if not has_target_binding(event):
+                    # Never bind historical unowned rows to the mailbox's current owner.
+                    # Retain for bounded operator review; explicitly report incomplete coverage.
+                    self.fail("legacy_unbound_reports")
+                    with self.store.connection() as db:
+                        db.execute("UPDATE incoming_reports SET next_retry=? WHERE id=?", (time.time() + 300, identifier))
+                    continue
+                request(base + "reports", json.dumps({"events": [event]}, separators=(",", ":")).encode())
                 with self.store.connection() as db:
                     db.execute("UPDATE incoming_reports SET sent=? WHERE id=?", (time.time(), identifier))
             except Exception:

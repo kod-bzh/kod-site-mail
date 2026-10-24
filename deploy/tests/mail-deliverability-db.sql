@@ -7,6 +7,13 @@ INSERT INTO "Organization" (id,name,slug,"updatedAt") VALUES ('fixture-a','Simul
 INSERT INTO "OutboundMessage" (id,"organizationId","accountId","fromAddress",subject,recipients,"recipientCount","rfcMessageId","updatedAt") VALUES
 ('message-a','fixture-a','account-a','sender@example.org','Simulated','{"to":["recipient@example.net"],"cc":[],"bcc":[]}',1,'rfc-a@example.org',now()),
 ('message-b','fixture-b','account-b','sender@other.example','Simulated','{"to":["recipient@example.net"],"cc":[],"bcc":[]}',1,'rfc-b@other.example',now());
+-- Same-domain key restrictions include the @ boundary; a child host must never match.
+DO $$ BEGIN
+ IF 'sender@shop.example.org' LIKE '%@example.org' OR 'sender@otherexample.org' LIKE '%@example.org' OR 'sender@example.org.evil' LIKE '%@example.org' THEN
+  RAISE EXCEPTION 'Domain boundary filter widened access';
+ END IF;
+ IF NOT ('sender@example.org' LIKE '%@example.org') THEN RAISE EXCEPTION 'Exact domain filter lost own host'; END IF;
+END $$;
 INSERT INTO "MailTelemetryEvent" (id,"organizationId",domain,"messageId",type,source,reliability,"occurredAt",data) VALUES
 ('stable-event','fixture-a','example.org','message-a','email.mdn','fixture','unverified_report',now(),'{}');
 INSERT INTO "MailTelemetryEvent" (id,"organizationId",domain,"messageId",type,source,reliability,"occurredAt",data) VALUES

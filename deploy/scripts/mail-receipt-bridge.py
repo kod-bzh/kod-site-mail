@@ -250,11 +250,7 @@ def serve():
                             if selected and len(prefix) > 8_000_000:
                                 raise ValueError("Report request limit")
                     if selected:
-                        try:
-                            reports.ingest(json.loads(prefix))
-                        except (ValueError, KeyError, TypeError):
-                            reports.reject(json.loads(prefix))
-                            print("Rejected malformed structured report; content not retained", flush=True)
+                        reports.ingest_encoded(prefix, metadata)
                     return self.reply(200, {"action": "accept"})
                 if self.path == "/events":
                     if not 0 < length <= 2_000_000:

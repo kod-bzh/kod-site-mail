@@ -5,7 +5,7 @@ vi.mock("./feedback", () => ({ ingestFeedback: mocks.feedback, resolveFeedbackDo
 import { digest } from "./telemetry";
 import { ingestIncomingReport } from "./incoming-reports";
 beforeEach(() => { vi.clearAllMocks(); mocks.boxes.mockResolvedValue([{ id: "box-a", organizationId: "org-a", address: "postmaster@example.org", stalwartAccountId: "account-a" }]);
-  mocks.resolve.mockResolvedValue("example.org"); mocks.feedback.mockResolvedValue(true); mocks.aliases.mockResolvedValue([{ organizationId: "org-a", source: "dmarc@example.org", destination: "postmaster@example.org" }]); });
+  mocks.matching.mockResolvedValue([]); mocks.resolve.mockResolvedValue("example.org"); mocks.feedback.mockResolvedValue(true); mocks.aliases.mockResolvedValue([{ organizationId: "org-a", source: "dmarc@example.org", destination: "postmaster@example.org" }]); });
 const report = { reportedDomain: "example.org", reporter: "Fixture", reportIdentifier: "simulated", periodStart: new Date(Date.now() - 86400000).toISOString(), periodEnd: new Date().toISOString(), filename: "report.xml",
   sourcesJson: [{ ip: "192.0.2.1", count: 2, dkim: false, spf: false, dkimAlignment: "fail" as const, spfAlignment: "fail" as const, disposition: "none", headerFrom: "example.org", dkimAuth: [], spfAuth: [] }] };
 const input = { id: "a".repeat(64), address: "dmarc@example.org", targetRef: digest(["org-a", "box-a", "account-a", "dmarc@example.org", "example.org"]), occurredAt: new Date().toISOString(), peerIp: "192.0.2.5", verifiedDomains: [], kind: "dmarc" as const, report };
@@ -37,4 +37,12 @@ it("quarantines an invalid structured report instead of retrying it as a global 
   const { report: omitted, ...base } = input; void omitted;
   expect(await ingestIncomingReport({ ...base, kind: "mdn", address: "postmaster@example.org", targetRef: digest(["org-a", "box-a", "account-a", "postmaster@example.org", "example.org"]), content: "invalid fixture" })).toBe(true);
   expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ organizationId: "org-a", error: "invalid_structured_report" }) }));
+});
+
+it("allows native MDN correlation only for sender identities that requested a receipt at this controlled account/address", async () => {
+  mocks.matching.mockResolvedValue([{ fromAddress: "billing@shop.example.org" }]);
+  const { report: omitted, ...base } = input; void omitted;
+  await ingestIncomingReport({ ...base, kind: "mdn", address: "postmaster@example.org", targetRef: digest(["org-a", "box-a", "account-a", "postmaster@example.org", "example.org"]), content: "fixture" });
+  expect(mocks.matching).toHaveBeenCalledWith(expect.objectContaining({ where: { organizationId: "org-a", accountId: "account-a", requestReadReceipt: true, readReceiptAddress: "postmaster@example.org" } }));
+  expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ domains: ["example.org", "shop.example.org"] }));
 });

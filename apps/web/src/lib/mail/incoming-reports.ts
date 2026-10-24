@@ -11,7 +11,7 @@ const row = z.object({ ip: z.string().ip(), count: z.number().int().min(0).max(1
   dkimAuth: z.array(auth).max(20), spfAuth: z.array(auth).max(20) }).strict();
 const aggregate = z.object({ reportedDomain: z.string().regex(/^[a-z0-9.-]{1,253}$/), reporter: z.string().min(1).max(200), reportIdentifier: z.string().min(1).max(300),
   periodStart: z.string().datetime(), periodEnd: z.string().datetime(), filename: z.string().max(255), sourcesJson: z.array(row).min(1).max(10000) }).strict();
-export const incomingReportSchema = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/), address: z.string().email().max(320), targetRef: z.string().regex(/^[a-f0-9]{64}$/), peerIp: z.string().ip(),
+export const incomingReportSchema = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/), address: z.string().email().max(320), targetRef: z.string().regex(/^[a-f0-9]{64}$/), peerIp: z.string().ip().nullable(),
   occurredAt: z.string().datetime(), verifiedDomains: z.array(z.string().regex(/^[a-z0-9.-]{1,253}$/)).max(5), kind: z.enum(["dmarc", "mdn", "arf", "dsn", "invalid_report"]),
   reason: z.enum(["invalid_dmarc_report", "invalid_structured_report"]).optional(), diagnosticRef: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   content: z.string().max(256000).optional(), originalHeaders: z.string().max(128000).optional(), report: aggregate.optional() }).strict();
@@ -71,10 +71,14 @@ export async function ingestIncomingReport(input: z.infer<typeof incomingReportS
     return true;
   }
   try {
+    const requestedIdentities = input.kind === "mdn" ? await prisma.outboundMessage.findMany({
+      where: { organizationId: target.organizationId, accountId: target.accountId, requestReadReceipt: true, readReceiptAddress: target.address },
+      distinct: ["fromAddress"], select: { fromAddress: true },
+    }) : [];
     const connectors = input.kind === "arf" ? await prisma.mailConnector.findMany({ where: { organizationId: target.organizationId,
     provider: { in: ["yahoo_cfl", "microsoft_jmrp"] }, settings: { path: ["mailboxId"], equals: target.mailboxId } }, select: { domain: true } }) : [];
   const domain = await resolveFeedbackDomain({ organizationId: target.organizationId, accountId: target.accountId, fallbackDomain: target.domain,
-    domains: [target.domain, ...connectors.map(row => row.domain)], kind: input.kind, content: input.content, originalHeaders: input.originalHeaders });
+    domains: [target.domain, ...requestedIdentities.map(row => row.fromAddress.split("@")[1]), ...connectors.map(row => row.domain)], kind: input.kind, content: input.content, originalHeaders: input.originalHeaders });
   return await ingestFeedback({ organizationId: target.organizationId, domain, accountId: target.accountId, sourceId: `native:${input.id}`,
     receivedAt: new Date(input.occurredAt), kind: input.kind, content: input.content, originalHeaders: input.originalHeaders, verifiedDomains: input.verifiedDomains });
   } catch (error) {
