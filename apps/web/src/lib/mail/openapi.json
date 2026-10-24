@@ -164,7 +164,7 @@
     "/api/v1/mail/domains/{domain}/reputation": {
       "get": {
         "summary": "Métriques et couverture par fournisseur",
-        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains. SMTP distingue aussi orange_wanadoo, sfr, free et laposte. Sans observations : availability unknown, compteurs SMTP/taux à null. Les diagnostics OFR sont issus des seules observations SMTP Orange ; inboxPlacement reste null.",
         "security": [
           {
             "BearerAuth": []

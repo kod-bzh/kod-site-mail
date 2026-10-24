@@ -92,3 +92,7 @@ Exemple simulé d’ouverture d’incident :
 ```
 
 Les filtres de webhook sont exacts lorsqu’une liste eventTypes est fournie. Pour recevoir les huit types, fournir les quatre événements SMTP et les quatre nouveaux types. L’absence du champ conserve les quatre événements SMTP historiques. Une liste explicite vide est refusée. Les rapports invalides sont diagnostiqués seulement pour leur boîte/domaine destinataire ; ils ne rendent pas le relais global défaillant. Un agrégat sans record reste invalide selon la RFC 9990, section 3.1.1.2 ; les espaces de noms DMARC actuels et historiques sont pris en charge.
+
+## Fournisseurs français
+
+Dans `/mail/domains/{domain}/reputation`, exploiter les lignes `smtp.providers` orange_wanadoo, sfr, free et laposte. Afficher l’absence d’observations comme inconnue ; `requestedRecipients: 0` ne prouve ni zéro plainte ni une bonne réputation. Les diagnostics OFR donnent un motif Orange, une action et un volume observé, sans preuve de boîte principale. Ne jamais convertir `inboxPlacement: null` en « hors spam ». Ne pas créer une nouvelle soumission pour contourner une limitation : suivre le message existant et laisser le serveur SMTP gérer ses reprises natives. Aucune modification automatique du corps ou du PDF.
