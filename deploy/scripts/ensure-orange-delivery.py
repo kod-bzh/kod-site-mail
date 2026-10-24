@@ -20,6 +20,13 @@ MARKER = "KOD managed Orange/Wanadoo ordinary mail safety"
 CONDITION = "(rcpt_domain == 'orange.fr' || rcpt_domain == 'wanadoo.fr') && !is_local_domain(rcpt_domain) && source != 'dsn' && source != 'report'"
 
 
+def write_backup(directory, value):
+    path = directory / f"orange-{time.time_ns()}.json"
+    with open(path, "x", opener=lambda path, flags: os.open(path, flags, 0o600)) as stream:
+        json.dump(value, stream)
+    return path
+
+
 def schedule_expression(current, enabled):
     if not isinstance(current, dict) or not isinstance(current.get("else"), str) or (enabled and current["else"] != "'remote'") or not isinstance(current.get("match", {}), dict):
         raise RuntimeError("Unfamiliar scheduling policy; manual review required")
@@ -132,9 +139,7 @@ def main():
 
     args.state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     def backup(value):
-        path = args.state_dir / f"orange-{time.time_ns()}.json"
-        with path.open("x", opener=lambda path, flags: os.open(path, flags, 0o600)) as stream:
-            json.dump(value, stream)
+        write_backup(args.state_dir, value)
     with (args.state_dir / "policy.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         # Share the production routing reconciler's lock, not merely our own.
