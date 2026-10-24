@@ -11,10 +11,9 @@ export async function pollDeliverability() {
   const registered = await prisma.domain.findMany({ where: { status: { in: ["VERIFIED", "ACTIVE"] } }, select: { organizationId: true, fqdn: true } });
   const monitored = await prisma.mailMonitoredDomain.findMany({ select: { organizationId: true, domain: true } });
   const domains = [...registered, ...monitored.filter(row => !registered.some(item => item.organizationId === row.organizationId && item.fqdn === row.domain)).map(row => ({ organizationId: row.organizationId, fqdn: row.domain }))];
-  for (const domain of domains) for (const provider of PROVIDERS) {
-    await prisma.mailConnector.upsert({ where: { organizationId_domain_provider: { organizationId: domain.organizationId, domain: domain.fqdn, provider } },
-      create: { organizationId: domain.organizationId, domain: domain.fqdn, provider, state: provider === "dns" ? "insufficient_data" : "not_configured" }, update: {} });
-  }
+  await prisma.mailConnector.createMany({ data: domains.flatMap(domain => PROVIDERS.map(provider => ({
+    organizationId: domain.organizationId, domain: domain.fqdn, provider, state: provider === "dns" ? "insufficient_data" : "not_configured",
+  }))), skipDuplicates: true });
   const due = await prisma.mailConnector.findMany({ where: { nextCheckAt: { lte: new Date() }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, orderBy: { nextCheckAt: "asc" }, take: 10 });
   for (const connector of due) {
     const claim = await prisma.mailConnector.updateMany({ where: { id: connector.id, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, data: { leaseUntil: new Date(Date.now() + 300_000), lastAttemptAt: new Date() } });
