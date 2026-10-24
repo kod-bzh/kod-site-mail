@@ -1354,6 +1354,122 @@
           }
         }
       }
+    },
+    "/api/v1/mail/connectors/google/oauth": {
+      "post": {
+        "summary": "Démarrer une autorisation Google Postmaster en lecture seule",
+        "description": "Administrateur plateforme uniquement. Renvoie un lien temporaire à ouvrir dans le navigateur du propriétaire. Ne crée aucune inscription et ne transmet aucun jeton au navigateur. Domaines limités à l’organisation choisie.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organizationSlug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "domains"
+                ],
+                "properties": {
+                  "domains": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "format": "hostname"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lien temporaire, scope exact, domaines et expiration ; aucune statistique encore garantie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "authorizationUrl",
+                    "scope",
+                    "domains",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "authorizationUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "const": "https://www.googleapis.com/auth/postmaster.readonly"
+                    },
+                    "domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Configuration, domaine ou corps invalide"
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Administration plateforme et organisation autorisée requises"
+          }
+        }
+      },
+      "get": {
+        "summary": "Ouvrir le consentement Postmaster pour un état temporaire",
+        "security": [],
+        "description": "Lien temporaire fourni par le POST administrateur. Pose le cookie navigateur HttpOnly et redirige vers Google avec PKCE. Aucun jeton fourni par le client.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirection vers le consentement Google Postmaster en lecture seule"
+          },
+          "400": {
+            "description": "État invalide ou expiré"
+          }
+        }
+      }
     }
   },
   "webhooks": {

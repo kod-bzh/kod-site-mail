@@ -4,6 +4,7 @@ import { verifyOAuthState } from "@/lib/migration/oauth-state";
 import { exchangeGoogleCode } from "@/lib/migration/providers/google";
 import { storeOAuthTokens } from "@/lib/migration/orchestrator";
 import { prisma } from "@/lib/prisma";
+import { finishPostmasterOAuth, isPostmasterState } from "@/lib/mail/google-postmaster-oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,8 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
   const oauthError = req.nextUrl.searchParams.get("error");
+
+  if (isPostmasterState(state)) return finishPostmasterOAuth(req);
 
   if (oauthError) {
     return usersRedirect(req, { migrationError: oauthError });
