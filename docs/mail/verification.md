@@ -5,7 +5,7 @@
 - Contrôles DNS publics et clé DKIM RSA 2048 : voir audit-2026-10-24.md. MX Microsoft 365 et p=none inchangés.
 - Message de démonstration déjà reçu chez Igor le 24/10 à 08:27 UTC : SPF/DKIM/DMARC pass et TLS 1.3, vrai PDF. Aucun nouvel envoi client ni renvoi historique durant l’audit.
 - Boîte DMARC native c7 : rapports Google/Microsoft reçus depuis le 16/10, chiffrés PGP et anciennement marqués traités sans XML extrait. Ce constat est réel, pas une fixture. L’absence d’agrégats en base provenait de cette collecte défaillante.
-- Portails Google/Microsoft/Yahoo : non revérifiés, Mac verrouillé lors de deux tentatives Dia ; aucune réinscription créée.
+- Portails Google/Microsoft/Yahoo : non revérifiés, Mac verrouillé lors de trois tentatives Dia ; aucune réinscription créée.
 
 ## Tests simulés et contrôles locaux
 Tests TypeScript : compatibilité JSON/multipart et PDF exacts, flag MDN strict, en-tête contrôlé sans changement de corps, authentification, scopes et domaines, absence de données null, filtrage des IP partagées, corrélation organisation/message/destinataire, plaintes anonymisées, faux Authentication-Results, doublons, ordre des preuves SMTP, incidents sans notifications répétées, webhooks HMAC et reprises sans soumission, révocation des accès et masquage Bcc.
