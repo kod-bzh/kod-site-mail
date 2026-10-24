@@ -16,9 +16,10 @@ export async function pollDeliverability() {
   }))), skipDuplicates: true });
   const due = await prisma.mailConnector.findMany({ where: { nextCheckAt: { lte: new Date() }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, orderBy: { nextCheckAt: "asc" }, take: 10 });
   for (const connector of due) {
-    const claim = await prisma.mailConnector.updateMany({ where: { id: connector.id, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, data: { leaseUntil: new Date(Date.now() + 300_000), lastAttemptAt: new Date() } });
+    const leaseUntil = new Date(Date.now() + 300_000);
+    const claim = await prisma.mailConnector.updateMany({ where: { id: connector.id, OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }] }, data: { leaseUntil, lastAttemptAt: new Date() } });
     if (!claim.count) continue;
-    let state = connector.state, lastError: string | null = null, success = false;
+    let state = connector.state, lastError: string | null = null, success = false, finalized = false;
     try {
       const currentDomain = await prisma.domain.findUnique({ where: { organizationId_fqdn: { organizationId: connector.organizationId, fqdn: connector.domain } } });
       const monitorDomain = currentDomain ?? await prisma.mailMonitoredDomain.findFirst({ where: { organizationId: connector.organizationId, domain: connector.domain } });
@@ -85,9 +86,13 @@ export async function pollDeliverability() {
       // Provider responses/URLs may include tokens. Never persist raw error text.
       lastError = error instanceof ProviderError ? error.message : `Collecte ${connector.provider} indisponible ; vérifier l’accès et le format de données.`;
     } finally {
-      await prisma.mailConnector.update({ where: { id: connector.id }, data: { state, lastError, leaseUntil: null,
+      // A renewed authorization or a replacement worker invalidates this lease. An old poll must not
+      // overwrite the new configuration, postpone its collection, or emit an obsolete incident.
+      const saved = await prisma.mailConnector.updateMany({ where: { id: connector.id, leaseUntil, secretCipher: connector.secretCipher }, data: { state, lastError, leaseUntil: null,
         nextCheckAt: new Date(Date.now() + (state === "error" ? 900_000 : connector.provider === "dns" ? 3600_000 : 6 * 3600_000)), ...(success ? { lastSuccessAt: new Date() } : {}) } });
+      finalized = saved.count > 0;
     }
+    if (!finalized) continue;
     if (connector.secretCipher || ["microsoft_jmrp", "yahoo_cfl"].includes(connector.provider) && connector.state !== "not_configured") {
       await setIncident({ organizationId: connector.organizationId, domain: connector.domain, code: `collector:${connector.provider}`,
         active: ["error", "authorization_required"].includes(state), summary: `Collecte ${connector.provider} indisponible`, action: "Rétablir l’accès et la collecte ; consulter les dates avant toute conclusion.",

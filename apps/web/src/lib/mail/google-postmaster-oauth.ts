@@ -106,7 +106,7 @@ export async function finishPostmasterOAuth(req: NextRequest) {
         const registered = await tx.domain.findFirst({ where: { organizationId: connector.organizationId, fqdn: domain }, select: { id: true } })
           ?? await tx.mailMonitoredDomain.findFirst({ where: { organizationId: connector.organizationId, domain }, select: { id: true } });
         if (!registered) throw Error("domain_not_authorized");
-        const data = { secretCipher: credentials, state: "insufficient_data", lastError: null, nextCheckAt: new Date(), expiresAt };
+        const data = { secretCipher: credentials, state: "insufficient_data", lastError: null, nextCheckAt: new Date(), leaseUntil: null, expiresAt };
         await tx.mailConnector.upsert({ where: { organizationId_domain_provider: { organizationId: connector.organizationId, domain, provider: "google_postmaster" } },
           create: { organizationId: connector.organizationId, domain, provider: "google_postmaster", ...data }, update: data });
       }
