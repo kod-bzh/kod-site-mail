@@ -19,3 +19,19 @@ describe("DMARC reports are bounded untrusted input", () => {
     await expect(parseDmarcReport(gzipSync(Buffer.alloc(MAX_REPORT_BYTES + 1)), "report.xml.gz", "mail.d2-group.fr")).rejects.toThrow();
   });
 });
+
+it("deduplicates a report independently of filename/compression and preserves raw authentication separately from alignment", async () => {
+  const detailed = xml.replace('</row></record>', '</row><auth_results><dkim><domain>unaligned.example</domain><result>pass</result></dkim><spf><domain>unaligned.example</domain><result>pass</result></spf></auth_results></record>');
+  const first = await parseDmarcReport(Buffer.from(detailed), "first.xml", "mail.d2-group.fr");
+  const second = await parseDmarcReport(gzipSync(detailed), "resent.xml.gz", "mail.d2-group.fr");
+  expect(first.semanticKey).toBe(second.semanticKey); expect(first.sourcesJson[0].dkimAuth).toEqual([expect.objectContaining({ domain: "unaligned.example", result: "pass" })]);
+  expect(first.sourcesJson[1].dkimAlignment).toBe("fail");
+  await expect(parseDmarcReport(Buffer.from(xml.replace('1792108800', '1792022400')), "invalid.xml", "mail.d2-group.fr")).rejects.toThrow(/Période/);
+});
+
+it("supports RFC 9990 default and prefixed namespaces and rejects an aggregate without required records", async () => {
+  for (const input of [xml.replace('<feedback>', '<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">'), xml.replace(/<(\/?)([a-z_]+)/g, '<$1d:$2').replace('<d:feedback>', '<d:feedback xmlns:d="urn:ietf:params:xml:ns:dmarc-2.0">')]) {
+    expect((await parseDmarcReport(Buffer.from(input), "report.xml", "mail.d2-group.fr")).totalCount).toBe(5);
+  }
+  await expect(parseDmarcReport(Buffer.from(xml.replace(/<record>[\s\S]*?<\/record>/g, "")), "empty.xml", "mail.d2-group.fr")).rejects.toThrow(/lignes/);
+});

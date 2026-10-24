@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
   }
   const input = payload.input;
   try {
+    const fromDomain = (input.from.match(/<([^>]+)>/)?.[1] ?? input.from).trim().toLowerCase().split("@")[1];
+    if (apiKey?.allowedMailDomains?.length && !apiKey.allowedMailDomains.includes(fromDomain)) return NextResponse.json({ error: "domain_forbidden" }, { status: 403 });
     const organizationId =
       apiKey?.organizationId ?? (await findOrganizationIdByFromAddress(input.from));
 
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "domain_not_in_org" }, { status: 403 });
     }
 
+    if (input.requestReadReceipt) return NextResponse.json({ error: "read_receipt_requires_registered_sender", detail: "Utiliser un domaine d’organisation et sa boîte contrôlée pour le suivi MDN." }, { status: 422 });
     const adminResult = await sendAdminMail(input);
     if (!adminResult.ok) {
       const status = adminResult.code === "invalid_from" ? 422 : 502;

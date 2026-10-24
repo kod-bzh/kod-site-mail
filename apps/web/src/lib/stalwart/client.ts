@@ -986,6 +986,7 @@ export async function sendMailViaStalwartJmap(input: {
   replyTo?: string;
   attachments?: OutboundAttachment[];
   rfcMessageId?: string;
+  requestReadReceipt?: boolean;
 }): Promise<
   { ok: true; messageId: string; via: string } | { ok: false; code: "smtp_not_configured" | "send_failed"; detail?: string }
 > {
@@ -1057,6 +1058,8 @@ export async function sendMailViaStalwartJmap(input: {
     messageId: [input.rfcMessageId ?? `${randomUUID()}@${fromEmail.split("@")[1]}`],
     keywords: { $seen: true, $draft: true },
   };
+  // RFC 8098: fixed typed header, return to the controlled envelope sender.
+  if (input.requestReadReceipt) emailCreate["header:Disposition-Notification-To:asText"] = fromEmail;
   if (cc.length) emailCreate.cc = cc.map((email) => ({ email }));
   // Bcc exists only in the SMTP envelope, never in the stored MIME headers.
   if (input.replyTo) emailCreate.replyTo = [{ email: input.replyTo }];
@@ -1242,19 +1245,19 @@ type ReportPart = { blobId?: string; name?: string; type?: string; size?: number
 export async function listDmarcMessages(accountId: string, address: string) {
   const result = await jmapCall([
     ["Email/query", { accountId, filter: { operator: "AND", conditions: [
-      { to: address, hasAttachment: true }, { notKeyword: "$frammDmarcProcessed" },
+      { to: address, hasAttachment: true }, { notKeyword: "$kodDmarcProcessedV2" },
     ] }, sort: [{ property: "receivedAt", isAscending: true }], limit: 20 }, "q"],
-    ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "bodyStructure"] }, "g"],
+    ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "receivedAt", "bodyStructure"] }, "g"],
   ], 20_000, JMAP_MAIL_USING);
   const error = jmapSendError(result);
   if (error) throw Error(error);
-  const body = asJmapResponses(result).find(row => row[0] === "Email/get")?.[1] as { list?: { id: string; bodyStructure: ReportPart }[] } | undefined;
+  const body = asJmapResponses(result).find(row => row[0] === "Email/get")?.[1] as { list?: { id: string; receivedAt: string; bodyStructure: ReportPart }[] } | undefined;
   if (!body?.list) throw Error("Rapports entrants non vérifiables");
   const flatten = (part: ReportPart, depth = 0): ReportPart[] => depth > 16 ? [] : [part, ...(part.subParts ?? []).flatMap(child => flatten(child, depth + 1))];
-  return body.list.map(message => ({ id: message.id, attachments: flatten(message.bodyStructure).filter(part => part.blobId && part.name && /\.(xml|gz|zip)$/i.test(part.name)).slice(0, 10) }));
+  return body.list.map(message => ({ id: message.id, receivedAt: message.receivedAt, encrypted: message.bodyStructure.type === "multipart/encrypted", attachments: flatten(message.bodyStructure).filter(part => part.blobId && part.name && /\.(xml|gz|zip)$/i.test(part.name)).slice(0, 10) }));
 }
 export async function markDmarcProcessed(accountId: string, emailId: string) {
-  const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$frammDmarcProcessed": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
+  const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$kodDmarcProcessedV2": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
   const error = jmapSendError(result);
   if (error) throw Error(error);
 }
@@ -1299,5 +1302,25 @@ export async function listDsnMessages(accountId: string, addresses: string[]) {
 }
 export async function markDsnProcessed(accountId: string, emailId: string) {
   const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$kodDsnProcessed": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result); if (error) throw Error(error);
+}
+
+/** Structured feedback only. Hidden keyword is independent from DSN/DMARC collectors. */
+export async function listFeedbackMessages(accountId: string) {
+  const result = await jmapCall([
+    ["Email/query", { accountId, filter: { operator: "AND", conditions: [
+      { header: ["Content-Type", "multipart/report"] }, { after: new Date(Date.now() - 30 * 86400_000).toISOString() },
+      { notKeyword: "$kodFeedbackProcessed" },
+    ] }, sort: [{ property: "receivedAt", isAscending: true }], limit: 20 }, "q"],
+    ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "receivedAt", "blobId", "size", "bodyStructure"] }, "g"],
+  ], 20_000, JMAP_MAIL_USING);
+  const error = jmapSendError(result); if (error) throw Error(error);
+  const body = asJmapResponses(result).find(row => row[0] === "Email/get")?.[1] as { list?: { id: string; receivedAt: string; blobId: string; size: number; bodyStructure: ReportPart }[] } | undefined;
+  if (!body?.list) throw Error("Rapports entrants indisponibles");
+  return body.list.map(message => ({ ...message, parts: (message.bodyStructure.subParts ?? []).filter(part => part.blobId &&
+    ["message/disposition-notification", "message/feedback-report", "text/rfc822-headers", "message/rfc822"].includes(part.type ?? "")).slice(0, 10) }));
+}
+export async function markFeedbackProcessed(accountId: string, emailId: string) {
+  const result = await jmapCall([["Email/set", { accountId, update: { [emailId]: { "keywords/$kodFeedbackProcessed": true } } }, "mark"]], 15_000, JMAP_MAIL_USING);
   const error = jmapSendError(result); if (error) throw Error(error);
 }

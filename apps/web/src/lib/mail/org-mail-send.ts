@@ -18,6 +18,7 @@ export type OrgMailSendInput = {
   cc?: string | string[];
   bcc?: string | string[];
   attachments?: OutboundAttachment[];
+  requestReadReceipt?: boolean;
   initiatorId?: string;
 };
 
@@ -133,6 +134,10 @@ export async function sendOrgMail(
     return { ok: false, error: "missing_content" };
   }
 
+  if (input.initiatorId && input.initiatorId !== "admin") {
+    const key = await prisma.organizationApiKey.findUnique({ where: { id: input.initiatorId }, select: { allowedMailDomains: true } });
+    if (key?.allowedMailDomains.length && !key.allowedMailDomains.includes(extractDomain(fromEmail))) return { ok: false, error: "domain_not_in_org" };
+  }
   const domainError = await validateFromDomainForOrg(input.organizationId, fromEmail);
   if (domainError) return { ok: false, error: domainError };
 
@@ -145,6 +150,7 @@ export async function sendOrgMail(
       ? `${domainSettings.senderName.replace(/[\r\n<>"]/g, "")} <${fromEmail}>` : input.from.trim(),
     ...recipients,
     attachments: input.attachments,
+    requestReadReceipt: input.requestReadReceipt ?? false,
     subject: input.subject.trim(),
     text: input.text,
     html: input.html,
@@ -152,6 +158,9 @@ export async function sendOrgMail(
   };
 
   const smtpAuth = await findStalwartSmtpAuth(fromEmail, input.organizationId);
+  if (input.requestReadReceipt && smtpAuth?.address !== fromEmail) {
+    return { ok: false, error: "smtp_not_configured", detail: "Accusé MDN : une boîte de retour exacte et contrôlée est requise pour cet expéditeur." };
+  }
   if (!smtpAuth) {
     return {
       ok: false,
@@ -163,7 +172,8 @@ export async function sendOrgMail(
   let reserved;
   try {
     reserved = await reserveOutbound({ organizationId: input.organizationId, accountId: smtpAuth.accountId,
-      fromAddress: fromEmail, subject: mailPayload.subject, recipients, initiatorId: input.initiatorId });
+      fromAddress: fromEmail, subject: mailPayload.subject, recipients, initiatorId: input.initiatorId, requestReadReceipt: input.requestReadReceipt ?? false,
+      readReceiptAddress: input.requestReadReceipt ? fromEmail : null });
   } catch (error) {
     if (error instanceof MailPolicyError) return { ok: false, error: error.code, detail: error.message };
     return { ok: false, error: "send_failed", detail: "Suivi des envois indisponible : aucun message envoyé." };

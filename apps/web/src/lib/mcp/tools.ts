@@ -25,6 +25,7 @@ import {
 import { createMailboxForOrg } from "@/lib/mail/create-mailbox";
 import { refreshOutbound } from "@/lib/mail/delivery";
 import { DELIVERY_NOTICE } from "@/lib/mail/delivery-status";
+import { safeMessage } from "@/lib/mail/telemetry";
 import { sendOrgMail } from "@/lib/mail/org-mail-send";
 import { getMailSendApiGuide } from "@/lib/mcp/mail-api-guide";
 import { verifyDomainDns } from "@/lib/dns/verify";
@@ -360,9 +361,10 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       const org = await requireOrg(actor, parsed.data);
       if (!org.ok) return fail(org.error);
       const messageId = parsed.data.messageId;
-      const where = { organizationId: org.organizationId, ...(actor.isAdmin ? {} : { initiatorId: actor.apiKeyId ?? actor.userId ?? "unavailable" }),
+      const where = { organizationId: org.organizationId,
+        ...(actor.allowedMailDomains?.length ? { OR: actor.allowedMailDomains.map(domain => ({ fromAddress: { endsWith: `@${domain}` } })) } : {}), ...(actor.isAdmin ? {} : { initiatorId: actor.apiKeyId ?? actor.userId ?? "unavailable" }),
         ...(parsed.data.from ? { fromAddress: parsed.data.from.toLowerCase() } : {}),
-        ...(messageId ? { OR: [{ id: messageId }, { submissionId: messageId }, { rfcMessageId: messageId }] } : {}) };
+        ...(messageId ? { AND: [{ OR: [{ id: messageId }, { submissionId: messageId }, { rfcMessageId: messageId }] }] } : {}) };
       const records = await prisma.outboundMessage.findMany({ where, orderBy: { createdAt: "desc" }, take: messageId ? 2 : 50,
         omit: { accountId: true, initiatorId: true, leaseUntil: true } });
       if (messageId && records.length > 1) return fail("ambiguous_message_id", { detail: "Préciser from ou utiliser id/rfcMessageId unique." });
@@ -370,10 +372,10 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
       if (messageId) {
         if (records[0].submissionId && records[0].nextCheckAt <= new Date()) await refreshOutbound(records[0].id);
         const message = await prisma.outboundMessage.findUnique({ where: { id: records[0].id }, omit: { accountId: true, initiatorId: true, leaseUntil: true },
-          include: { events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
-        return ok({ message, notice: DELIVERY_NOTICE });
+          include: { telemetryEvents: { orderBy: { receivedAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, source: true, reliability: true, occurredAt: true, receivedAt: true, data: true } }, events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
+        return ok({ message: message ? safeMessage(message) : null, notice: DELIVERY_NOTICE });
       }
-      return ok({ messages: records, notice: DELIVERY_NOTICE });
+      return ok({ messages: records.map(safeMessage), notice: DELIVERY_NOTICE });
     },
   },
   {
@@ -396,6 +398,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         text: { type: "string" },
         html: { type: "string" },
         replyTo: { type: "string" },
+        requestReadReceipt: { type: "boolean", default: false },
         organizationSlug: { type: "string" },
       },
       required: ["from", "to", "subject"],
@@ -422,6 +425,7 @@ export const FRAMM_MCP_TOOLS: McpToolDef[] = [
         cc: parsed.data.cc,
         bcc: parsed.data.bcc,
         attachments: parsed.data.attachments,
+        requestReadReceipt: parsed.data.requestReadReceipt,
       });
       if (!result.ok) return fail(result.error, { detail: result.detail });
       return ok({ ok: true, messageId: result.messageId, trackingId: result.trackingId, rfcMessageId: result.rfcMessageId });

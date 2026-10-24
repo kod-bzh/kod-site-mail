@@ -11,6 +11,7 @@ export type MailAttachment = z.infer<typeof attachmentSchema>;
 export type OutboundAttachment = MailAttachment | UploadedAttachment;
 const recipients = z.union([z.string().min(3).max(320), z.array(z.string().min(3).max(320)).min(1).max(50)]);
 export const sendBodySchema = z.object({
+  requestReadReceipt: z.boolean().optional(),
   from: z.string().min(3).max(320), to: recipients,
   cc: recipients.optional(), bcc: recipients.optional(),
   subject: z.string().min(1).max(998),

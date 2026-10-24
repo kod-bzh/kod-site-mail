@@ -1,0 +1,8 @@
+FROM python:3.12-alpine
+ARG SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
+COPY deploy/scripts/requirements-mail-reports.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1
+USER 2000:2000
+CMD ["python", "-u", "/app/bridge.py"]

@@ -17,7 +17,9 @@ describe("durable delivery receipts", () => {
   it("persists the remote reply and schedules notification for the sending key only", async () => {
     expect(await ingestReceipt(event)).toBe(true);
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "ACCEPTED" }) }));
-    expect(mocks.hooks).toHaveBeenCalledWith({ where: { organizationId: "org", initiatorId: "key" }, select: { id: true } });
+    expect(mocks.hooks).toHaveBeenCalledWith({ where: { organizationId: "org", initiatorId: "key",
+      AND: [{ OR: [{ eventTypes: { isEmpty: true } }, { eventTypes: { has: "email.accepted" } }] },
+        { OR: [{ allowedDomains: { isEmpty: true } }, { allowedDomains: { has: "example.org" } }] }] }, select: { id: true } });
     expect(mocks.attempts).toHaveBeenCalledWith({ data: [{ webhookId: "hook", eventId: event.id }], skipDuplicates: true });
   });
   it("ignores retries without issuing another notification", async () => {

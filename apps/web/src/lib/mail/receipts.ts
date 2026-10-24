@@ -8,6 +8,7 @@ export const receiptSchema = z.object({
   id: z.string().regex(/^[a-f0-9]{64}$/),
   type: z.enum(["smtp.accepted", "smtp.failed", "smtp.deferred", "mail.bounced"]),
   rfcMessageId: z.string().min(3).max(320), from: z.string().email(), recipient: z.string().email(),
+  reliability: z.enum(["observed_smtp", "unverified_report", "authenticated_domain_report"]).optional(),
   occurredAt: z.string().datetime({ offset: true }), queueId: z.string().regex(/^\d{1,20}$/).optional(),
   remoteMta: z.string().max(255).default(""), smtpReply: z.string().max(2100),
 });
@@ -22,6 +23,7 @@ export function applyReceipt(current: RecipientDelivery, event: DeliveryReceipt)
   if (current.source === "dsn" && event.type !== "mail.bounced") return result;
   return { ...result, source: event.type === "mail.bounced" ? "dsn" : "smtp",
     state: event.type === "smtp.accepted" ? "ACCEPTED" : event.type === "mail.bounced" ? "BOUNCED" : event.type === "smtp.failed" ? "FAILED" : "QUEUED",
+    reliability: event.type === "mail.bounced" ? event.reliability ?? "unverified_report" : "observed_smtp",
     observedAt: event.occurredAt, evidenceId: event.id, remoteMta: event.remoteMta,
     smtpReply: event.smtpReply, ...(event.queueId ? { queueId: event.queueId } : {}),
     delivered: event.type === "smtp.failed" || event.type === "mail.bounced" ? "no" : event.type === "smtp.deferred" ? "queued" : "unknown" };
@@ -51,7 +53,10 @@ export async function ingestReceipt(event: DeliveryReceipt): Promise<boolean> {
       where: { organizationId_address: { organizationId: record.organizationId, address: recipient } },
       create: { organizationId: record.organizationId, address: recipient, reason: "hard_bounce", source: event.type === "mail.bounced" ? "dsn_report" : "smtp_receipt" }, update: {},
     });
-    const hooks = await tx.mailWebhook.findMany({ where: { organizationId: record.organizationId, initiatorId: record.initiatorId }, select: { id: true } });
+    const eventType = event.type.replace(/^smtp\./, "email.").replace(/^mail\./, "email.");
+    const hooks = await tx.mailWebhook.findMany({ where: { organizationId: record.organizationId, initiatorId: record.initiatorId,
+      AND: [{ OR: [{ eventTypes: { isEmpty: true } }, { eventTypes: { has: eventType } }] },
+        { OR: [{ allowedDomains: { isEmpty: true } }, { allowedDomains: { has: record.fromAddress.split("@")[1] } }] }] }, select: { id: true } });
     if (hooks.length) await tx.mailWebhookAttempt.createMany({ data: hooks.map(hook => ({ webhookId: hook.id, eventId: event.id })), skipDuplicates: true });
     return true;
   }, { timeout: 15_000 });

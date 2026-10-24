@@ -1,4 +1,5 @@
-export type RecipientDelivery = { delivered?: string; smtpReply?: string; displayed?: string;
+export type RecipientDelivery = {
+  reliability?: "observed_smtp" | "unverified_report" | "authenticated_domain_report"; delivered?: string; smtpReply?: string; displayed?: string;
   source?: "smtp" | "dsn"; state?: RecipientState; observedAt?: string; acceptedAt?: string;
   remoteMta?: string; queueId?: string; evidenceId?: string };
 export type RecipientState = "QUEUED" | "ACCEPTED" | "DELIVERED" | "FAILED" | "BOUNCED" | "UNKNOWN";

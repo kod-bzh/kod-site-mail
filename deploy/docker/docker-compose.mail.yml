@@ -46,7 +46,12 @@ services:
     command: ["TCP-LISTEN:18080,fork,reuseaddr", "TCP:127.0.0.1:8080"]
 
   mail-receipts:
-    image: python:3.12-alpine
+    image: framm-mail-receipts:${MAIL_RECEIPT_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.mail-receipts
+      args:
+        SOURCE_REVISION: ${MAIL_RECEIPT_VERSION:-unknown}
     restart: unless-stopped
     network_mode: "service:stalwart"
     depends_on:
@@ -60,6 +65,7 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - /opt/framm/deploy/scripts/mail-receipt-bridge.py:/app/bridge.py:ro
+      - /opt/framm/deploy/scripts/mail-report-intake.py:/app/mail-report-intake.py:ro
       - /opt/framm/mail-receipts:/var/lib/framm-mail-receipts
     command: ["python", "-u", "/app/bridge.py"]
     healthcheck:

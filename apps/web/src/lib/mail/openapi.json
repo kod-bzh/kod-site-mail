@@ -1,0 +1,2275 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KOD Mail — délivrabilité, pièces jointes et notifications",
+    "version": "2026-10-24",
+    "description": "Contrat additif. Aucune garantie de classement hors spam ou de lecture humaine. Les métriques absentes restent null. Périodes de consultation <=90 jours, 30 jours par défaut. Retours MDN et plaintes déclaratifs séparés du suivi SMTP."
+  },
+  "servers": [
+    {
+      "url": "https://kod.bzh"
+    }
+  ],
+  "paths": {
+    "/api/v1/mail/deliverability": {
+      "get": {
+        "summary": "Synthèse de l’organisation et des domaines autorisés",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "openIncidents": {
+                      "type": "integer"
+                    },
+                    "complaintCount": {
+                      "type": "null"
+                    },
+                    "reputation": {
+                      "type": "null"
+                    },
+                    "absenceReason": {
+                      "type": "string"
+                    },
+                    "notice": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/domains/{domain}/health": {
+      "get": {
+        "summary": "DNS et authentification",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/domains/{domain}/reputation": {
+      "get": {
+        "summary": "Métriques et couverture par fournisseur",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reputation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/domains/{domain}/dmarc": {
+      "get": {
+        "summary": "Rapports DMARC, sources et anomalies",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dmarc"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/alerts": {
+      "get": {
+        "summary": "Incidents ouverts et résolus",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "resolved"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alerts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Incident"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/events": {
+      "get": {
+        "summary": "Rattrapage des notifications de télémétrie",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TelemetryEvent"
+                      }
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "notice": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/suppressions": {
+      "get": {
+        "summary": "Suppressions visibles des destinataires To/Cc de la clé",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suppressions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "coverage": {
+                      "type": "string"
+                    },
+                    "truncatedMessageCoverage": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/connectors": {
+      "get": {
+        "summary": "États des connecteurs sans identifiants secrets",
+        "description": "Droit requis : deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connectors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Connector"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      },
+      "post": {
+        "summary": "Configurer un accès fournisseur autorisé",
+        "description": "Administrateur plateforme uniquement. Droit requis : platform_admin. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "credentials": {
+                    "type": "object",
+                    "writeOnly": true
+                  },
+                  "settings": {
+                    "type": "object"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "domain",
+                  "provider"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mail/monitored-domains": {
+      "post": {
+        "summary": "Autoriser un domaine en observation seule, sans SMTP ni DNS",
+        "description": "Administrateur plateforme uniquement. Droit requis : platform_admin. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  },
+                  "authorizationSource": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                },
+                "required": [
+                  "domain",
+                  "authorizationSource"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mail/messages": {
+      "get": {
+        "summary": "Suivi SMTP, plaintes et MDN des messages de la clé",
+        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/Message"
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    },
+                    "notice": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/send": {
+      "post": {
+        "summary": "Soumettre un email avec de vraies pièces jointes, sans garantir sa livraison",
+        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          },
+          "422": {
+            "description": "recipient_suppressed : refus explicite ; aucun envoi"
+          },
+          "429": {
+            "description": "rate_limited : aucun envoi"
+          },
+          "502": {
+            "description": "Résultat de soumission potentiellement incertain ; consulter le suivi et ne jamais rejouer automatiquement."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Send"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "html": {
+                    "type": "string"
+                  },
+                  "replyTo": {
+                    "type": "string"
+                  },
+                  "requestReadReceipt": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ],
+                    "default": "false"
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "subject"
+                ]
+              },
+              "encoding": {
+                "attachments": {
+                  "contentType": "application/octet-stream"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mail/webhooks": {
+      "get": {
+        "summary": "Historique des webhooks de la clé",
+        "description": "Droit requis : mail:send ou deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      },
+      "post": {
+        "summary": "Créer un webhook ; secret affiché une seule fois",
+        "description": "Droit requis : mail:send ou deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          },
+          "201": {
+            "description": "Webhook et signingSecret (une seule fois)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "webhook": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "eventTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    "signingSecret": {
+                      "type": "string",
+                      "writeOnly": true
+                    },
+                    "notice": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "HTTPS public, port 443, sans identifiants ni redirection."
+                  },
+                  "eventTypes": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "email.accepted",
+                        "email.failed",
+                        "email.deferred",
+                        "email.bounced",
+                        "email.complaint",
+                        "email.mdn",
+                        "deliverability.incident.opened",
+                        "deliverability.incident.resolved"
+                      ]
+                    },
+                    "description": "Liste explicite = filtre exact. Sans champ eventTypes, les quatre événements SMTP historiques sont abonnés par défaut. Les nouveaux types nécessitent deliverability:read.",
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Supprimer un abonnement appartenant à la clé",
+        "description": "Droit requis : mail:send ou deliverability:read. Les clés peuvent être limitées par allowedMailDomains.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requis pour le jeton administrateur ; une clé reste limitée à son organisation."
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat avec couverture et fraîcheur explicites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paramètres invalides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Organisation ou droit interdit"
+          },
+          "404": {
+            "description": "Ressource non autorisée ou absente"
+          },
+          "503": {
+            "description": "Service indisponible ; ne pas conclure au succès"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "mailEvent": {
+      "post": {
+        "summary": "Notification signée KOD ; livraison au moins une fois, ordre non garanti",
+        "parameters": [
+          {
+            "name": "X-Kod-Event-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Kod-Timestamp",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Secondes Unix ; tolérance recommandée 300 s"
+            }
+          },
+          {
+            "name": "X-Kod-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "v1=hex(HMAC-SHA256(signingSecret, timestamp + \".\" + corps HTTP brut))"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Événement enregistré durablement (ou doublon reconnu)"
+          },
+          "503": {
+            "description": "Non enregistré ; KOD réessaiera sans renvoyer l’email"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Clé serveur framm_… ; mail:send pour les envois et leur suivi, deliverability:read pour la surveillance. Aucun secret navigateur."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "requiredScope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Period": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "Connector": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "dns",
+              "google_postmaster",
+              "microsoft_snds",
+              "microsoft_jmrp",
+              "yahoo_cfl",
+              "microsoft365_dmarc",
+              "blocklists"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_configured",
+              "authorization_required",
+              "active",
+              "insufficient_data",
+              "stale",
+              "error"
+            ]
+          },
+          "coverage": {
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastSuccessfulCollectionAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "fresh",
+              "stale",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "state",
+          "coverage",
+          "freshness"
+        ]
+      },
+      "Rate": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "numerator": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "denominator": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "absenceReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "denominatorDescription": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "numerator",
+          "denominator"
+        ]
+      },
+      "Observation": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "message",
+              "recipient",
+              "domain",
+              "ip",
+              "organization"
+            ]
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "fresh",
+              "stale",
+              "unknown"
+            ]
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "source",
+          "scope",
+          "period",
+          "observedAt",
+          "fetchedAt",
+          "evidenceRef"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "scope": {
+            "const": "domain"
+          },
+          "connector": {
+            "$ref": "#/components/schemas/Connector"
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "unknown"
+            ]
+          },
+          "value": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "fetchedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "period": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Period"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "fresh",
+              "stale",
+              "unknown"
+            ]
+          },
+          "evidenceRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "absenceReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
+      "Reputation": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "smtp": {
+            "type": "object"
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "not_configured",
+                    "authorization_required",
+                    "active",
+                    "insufficient_data",
+                    "stale",
+                    "error"
+                  ]
+                },
+                "coverage": {
+                  "type": "string"
+                },
+                "availability": {
+                  "enum": [
+                    "available",
+                    "unknown"
+                  ]
+                },
+                "metrics": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Observation"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "absenceReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "notice": {
+            "type": "string"
+          }
+        }
+      },
+      "Dmarc": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "scope": {
+            "const": "domain"
+          },
+          "source": {
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "unknown"
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "fresh",
+              "stale",
+              "unknown"
+            ]
+          },
+          "totalCount": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reportCount": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "ip": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "dkimAlignedCount": {
+                  "type": "integer"
+                },
+                "spfAlignedCount": {
+                  "type": "integer"
+                },
+                "dmarcFailCount": {
+                  "type": "integer"
+                },
+                "unknownAlignmentCount": {
+                  "type": "integer"
+                },
+                "classification": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "kod",
+                        "microsoft365",
+                        "known_other",
+                        "unknown"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "evidenceRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "anomalies": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string"
+          },
+          "trust": {
+            "type": "string"
+          },
+          "absenceReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Incident": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "resolved"
+            ]
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "scope": {
+            "const": "domain"
+          },
+          "evidenceRef": {
+            "type": "string"
+          }
+        }
+      },
+      "TelemetryEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipient": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "email.complaint",
+              "email.mdn",
+              "deliverability.incident.opened",
+              "deliverability.incident.resolved"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "reliability": {
+            "enum": [
+              "observed",
+              "unverified_report",
+              "authenticated_domain_report",
+              "authenticated_provider_report"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "source",
+          "reliability",
+          "occurredAt",
+          "receivedAt",
+          "data"
+        ]
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "content": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "description": "Base64 canonique ; cumul décodé de toutes les pièces jointes <= 50 000 000 octets."
+          },
+          "contentType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "content"
+        ]
+      },
+      "Recipients": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          }
+        ]
+      },
+      "Send": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "cc": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "bcc": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "replyTo": {
+            "type": "string"
+          },
+          "requestReadReceipt": {
+            "type": "boolean",
+            "default": false,
+            "description": "Demande RFC 8098 facultative vers la boîte contrôlée exacte de From ; aucun changement de corps. L’absence de réponse reste inconnue."
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "subject"
+        ]
+      },
+      "Sent": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "trackingId": {
+            "type": "string"
+          },
+          "rfcMessageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "messageId",
+          "trackingId",
+          "rfcMessageId"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "submissionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rfcMessageId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RESERVED",
+              "SUBMITTED",
+              "QUEUED",
+              "ACCEPTED",
+              "DELIVERED",
+              "FAILED",
+              "BOUNCED",
+              "PARTIAL",
+              "UNKNOWN"
+            ]
+          },
+          "fromAddress": {
+            "type": "string"
+          },
+          "recipients": {
+            "type": "object",
+            "properties": {
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cc": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "deliveryJson": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "reliability": {
+                  "type": "string"
+                },
+                "smtpReply": {
+                  "type": "string"
+                },
+                "remoteMta": {
+                  "type": "string"
+                },
+                "queueId": {
+                  "type": "string"
+                },
+                "evidenceId": {
+                  "type": "string"
+                },
+                "observedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "acceptedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "requestReadReceipt": {
+            "type": "boolean",
+            "default": false
+          },
+          "readReceiptAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "telemetryEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TelemetryEvent"
+            }
+          }
+        }
+      },
+      "WebhookEnvelope": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "email.accepted",
+              "email.failed",
+              "email.deferred",
+              "email.bounced",
+              "email.complaint",
+              "email.mdn",
+              "deliverability.incident.opened",
+              "deliverability.incident.resolved"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "reliability": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "description": "SMTP : trackingId/submissionId/rfcMessageId/from/recipient/smtpReply/remoteMta. Télémétrie : domain/trackingId/recipient/details. Aucun corps, PDF, Bcc ni secret."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "occurredAt",
+          "data"
+        ]
+      }
+    }
+  }
+}
