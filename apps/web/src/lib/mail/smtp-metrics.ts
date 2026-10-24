@@ -74,9 +74,10 @@ export async function smtpMetrics(organizationId: string, domain: string, start:
         rejectionRate: { value: null, numerator: null, denominator: null, absenceReason: "no_recipient_observations_for_provider" },
         evidenceRef: `/api/v1/mail/domains/${encodeURIComponent(domain)}/reputation`, inboxPlacement: null, humanReading: null };
       return { provider, ...value, diagnostics: value.observedRecipients ? Object.values(value.diagnostics) : null,
+      accepted: value.observedRecipients ? value.accepted : null, failed: value.observedRecipients ? value.failed : null,
       availability: value.observedRecipients ? "available" : "unknown", absenceReason: value.observedRecipients ? null : "no_smtp_observations_for_provider",
       rejectionRate: { value: messages.length <= 10000 && value.observedRecipients >= minimum ? value.failed / value.observedRecipients : null,
-        numerator: value.failed, denominator: value.observedRecipients, absenceReason: messages.length > 10000 ? "message_observation_limit_reached" : value.observedRecipients >= minimum ? null : "insufficient_observed_volume",
+        numerator: value.observedRecipients ? value.failed : null, denominator: value.observedRecipients || null, absenceReason: messages.length > 10000 ? "message_observation_limit_reached" : !value.observedRecipients ? "no_smtp_observations_for_provider" : value.observedRecipients >= minimum ? null : "insufficient_observed_volume",
         description: "Rejets parmi les destinataires avec observation SMTP KOD ; les inconnus et DSN déclaratifs sont hors dénominateur." },
       evidenceRef: `/api/v1/mail/domains/${encodeURIComponent(domain)}/reputation`, inboxPlacement: null, humanReading: null };
     }) };
