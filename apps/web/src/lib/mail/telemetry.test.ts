@@ -27,8 +27,10 @@ it("deduplicates a durable event before queueing any callback and restricts subs
 it("redacts Bcc addresses from recipient maps, nested evidence and hidden recipient events", () => {
   const safe = safeMessage({ recipients: { to: ["visible@example.net"], cc: [], bcc: ["hidden@example.net"] },
     deliveryJson: { "hidden@example.net": { smtpReply: "550 hidden@example.net" }, "visible@example.net": { smtpReply: "250 OK" } },
-    events: [{ recipient: "hidden@example.net", data: {} }, { recipient: "visible@example.net", data: {} }], lastError: "hidden@example.net failed" });
-  expect(JSON.stringify(safe)).not.toContain("hidden@example.net"); expect(JSON.stringify(safe)).not.toContain('"bcc"'); expect(JSON.stringify(safe)).toContain("visible@example.net");
+    events: [{ recipient: "hidden@example.net", data: {} }, { recipient: "visible@example.net", data: {} }], lastError: "HIDDEN@EXAMPLE.NET failed", diagnostics: { "Hidden@Example.Net": "550 error" } });
+  expect(JSON.stringify(safe).toLowerCase()).not.toContain("hidden@example.net"); expect(JSON.stringify(safe)).not.toContain('"bcc"'); expect(JSON.stringify(safe)).toContain("visible@example.net");
+  const literal = safeMessage({ recipients: { bcc: ["hidden+tag@example.net"] }, lastError: "HIDDEN+TAG@EXAMPLE.NET failed; hiddenntag@example.net is another address" });
+  expect(literal.lastError).toBe("[hidden] failed; hiddenntag@example.net is another address");
 });
 
 it("keeps the real resolution date stable across unchanged checks so retention can expire", async () => {
