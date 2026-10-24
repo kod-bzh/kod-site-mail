@@ -36,7 +36,7 @@ export function orangeDiagnostic(provider: string, value: RecipientDelivery) {
   if (provider !== "orange_wanadoo" || value.source !== "smtp" || !/^[45]\d{2}\b/.test(value.smtpReply ?? "")) return null;
   const match = value.smtpReply?.match(/\bOFR(?:\d{1,3})?[_-](\d{2,3})\b/i);
   if (!match) return null;
-  return { code: match[1], ...(orangeCodes[match[1]] ?? { category: "provider_policy_unknown", action: "Consulter le diagnostic officiel Orange." }), source: ORANGE_POSTMASTER };
+  return { code: match[1], ...(orangeCodes[String(Number(match[1]))] ?? { category: "provider_policy_unknown", action: "Consulter le diagnostic officiel Orange." }), source: ORANGE_POSTMASTER };
 }
 export async function smtpMetrics(organizationId: string, domain: string, start: Date, end: Date) {
   const messages = await prisma.outboundMessage.findMany({ where: { organizationId, fromAddress: { endsWith: `@${domain}` }, createdAt: { gte: start, lt: end } },

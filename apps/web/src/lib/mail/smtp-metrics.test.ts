@@ -11,6 +11,7 @@ it("recognizes French providers by exact recipient domains or bounded MX suffixe
   expect(recipientProvider("test@orange.fr", "tenant.mail.protection.outlook.com")).toBe("microsoft365");
 });
 it("interprets explicit OFR suffixes only from an observed Orange SMTP reply", () => {
+  expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "550 IP blocked OFR_099" })).toMatchObject({ code: "099", category: "ip_blocked" });
   expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "421 Too many connections OFR002_104" })).toMatchObject({ code: "104", category: "connection_limit" });
   expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "550 Message blocked OFR_506" })).toMatchObject({ code: "506", category: "suspected_spam" });
   expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "451 OFR123_989" })).toMatchObject({ category: "reputation_limited" });
