@@ -30,3 +30,11 @@ it("redacts Bcc addresses from recipient maps, nested evidence and hidden recipi
     events: [{ recipient: "hidden@example.net", data: {} }, { recipient: "visible@example.net", data: {} }], lastError: "hidden@example.net failed" });
   expect(JSON.stringify(safe)).not.toContain("hidden@example.net"); expect(JSON.stringify(safe)).not.toContain('"bcc"'); expect(JSON.stringify(safe)).toContain("visible@example.net");
 });
+
+it("keeps the real resolution date stable across unchanged checks so retention can expire", async () => {
+  const resolvedAt = new Date(Date.now() - 86400000);
+  mocks.find.mockResolvedValue({ id: "incident", status: "resolved", generation: 1, resolvedAt });
+  await setIncident({ ...incident, active: false });
+  expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ resolvedAt }) }));
+  expect(mocks.create).not.toHaveBeenCalled();
+});

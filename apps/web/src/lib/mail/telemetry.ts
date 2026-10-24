@@ -34,7 +34,7 @@ export async function setIncident(input: {
     const now = new Date(), generation = (previous?.generation ?? 0) + (input.active && changed ? 1 : 0);
     const fields = { domain: input.domain, code: input.code, severity: input.severity ?? "warning", summary: input.summary,
       action: input.action, evidence: input.evidence, observedAt: now, status: input.active ? "open" : "resolved",
-      resolvedAt: input.active ? null : now, generation };
+      resolvedAt: input.active ? null : previous?.status === "resolved" ? previous.resolvedAt ?? now : now, generation };
     const incident = await tx.mailIncident.upsert({ where: { organizationId_fingerprint: { organizationId: input.organizationId, fingerprint } },
       create: { organizationId: input.organizationId, fingerprint, ...fields }, update: { ...fields, ...(input.active && changed ? { openedAt: now } : {}) } });
     if (changed) await appendTelemetry(tx, { id: digest([incident.id, generation, incident.status]), organizationId: input.organizationId,
