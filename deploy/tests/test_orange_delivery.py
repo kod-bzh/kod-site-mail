@@ -2,6 +2,9 @@ import copy
 import importlib.util
 from pathlib import Path
 import unittest
+import json
+import tempfile
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("orange", Path(__file__).resolve().parents[1] / "scripts/ensure-orange-delivery.py")
 orange = importlib.util.module_from_spec(spec)
@@ -9,6 +12,14 @@ spec.loader.exec_module(orange)
 
 
 class PolicyTests(unittest.TestCase):
+    def test_real_backup_is_private_and_cannot_overwrite_existing_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(orange.time, "time_ns", return_value=123):
+            path = orange.write_backup(Path(directory), {"schedule": {"else": "'remote'"}})
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(json.loads(path.read_text()), {"schedule": {"else": "'remote'"}})
+            with self.assertRaises(FileExistsError):
+                orange.write_backup(Path(directory), {})
+
     def setUp(self):
         self.strategy = {"schedule": {"match": {"0": {"if": "rcpt_domain == 'example.org'", "then": "'remote'"},
                          "1": {"if": "is_local_domain(rcpt_domain)", "then": "'local'"}, "2": {"if": "source == 'dsn'", "then": "'dsn'"}}, "else": "'remote'"},
