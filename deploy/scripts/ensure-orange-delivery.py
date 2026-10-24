@@ -21,7 +21,7 @@ CONDITION = "(rcpt_domain == 'orange.fr' || rcpt_domain == 'wanadoo.fr') && !is_
 
 
 def schedule_expression(current, enabled):
-    if not isinstance(current, dict) or current.get("else") != "'remote'" or not isinstance(current.get("match", {}), dict):
+    if not isinstance(current, dict) or not isinstance(current.get("else"), str) or (enabled and current["else"] != "'remote'") or not isinstance(current.get("match", {}), dict):
         raise RuntimeError("Unfamiliar scheduling policy; manual review required")
     rules = current.get("match", {})
     if any(not key.isdigit() for key in rules):
@@ -37,7 +37,7 @@ def schedule_expression(current, enabled):
         # Never override a custom provider, priority, or global schedule.
         standard = condition in ["is_local_domain(rcpt_domain)", "source == 'dsn'", "source == 'report'"]
         domains = re.fullmatch(r"rcpt_domain == '[a-z0-9.-]+'(?: \|\| rcpt_domain == '[a-z0-9.-]+')*", condition)
-        if not standard and (not domains or any(domain in ["orange.fr", "wanadoo.fr"] for domain in re.findall(r"'([^']+)'", condition))):
+        if enabled and not standard and (not domains or any(domain in ["orange.fr", "wanadoo.fr"] for domain in re.findall(r"'([^']+)'", condition))):
             raise RuntimeError("Custom scheduling rule needs manual review")
         retained.append(copy.deepcopy(rule))
     if enabled:
@@ -54,6 +54,9 @@ def reconcile(api, backup, dry_run=False, enabled=True):
             backup({"schedule": strategy["schedule"]})
             api("x:MtaOutboundStrategy/set", {"update": {"singleton": {"schedule": desired}}})
             api("x:Action/set", {"create": {"orange-reload": {"@type": "ReloadSettings"}}})
+            actual = api("x:MtaOutboundStrategy/get", {"ids": ["singleton"]})["list"][0]
+            if actual["schedule"] != desired or any(actual.get(k) != strategy.get(k) for k in ["route", "tls", "connection"]):
+                raise RuntimeError("Provider rule removal not confirmed")
         return {"enabled": False, "changed": changed, "queuedMessagesTouched": False}
     queues = api("x:MtaVirtualQueue/get", {})["list"]
     schedules = api("x:MtaDeliverySchedule/get", {})["list"]

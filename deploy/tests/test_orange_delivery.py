@@ -61,6 +61,14 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(orange.reconcile(self.api, lambda value: self.fail("unexpected backup"), dry_run=True)["changed"])
         self.assertTrue(all(method.endswith("/get") for method, _ in self.calls))
 
+    def test_disable_removes_only_owned_rule_after_custom_policy_changes(self):
+        orange.reconcile(self.api, lambda value: None)
+        self.strategy["schedule"]["else"] = "'custom-priority'"
+        self.strategy["schedule"]["match"]["9"] = {"if": "retry_num > 2", "then": "'custom-retry'"}
+        orange.reconcile(self.api, lambda value: None, enabled=False)
+        self.assertEqual(self.strategy["schedule"]["else"], "'custom-priority'")
+        self.assertIn({"if": "retry_num > 2", "then": "'custom-retry'"}, self.strategy["schedule"]["match"].values())
+
     def test_refuses_unmanaged_names_custom_schedules_and_provider_rules(self):
         self.queues.append({"id": "private", "name": orange.NAME})
         with self.assertRaises(RuntimeError):
