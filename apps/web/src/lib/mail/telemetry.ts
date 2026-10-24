@@ -44,12 +44,12 @@ export async function setIncident(input: {
 }
 export function safeMessage(message: { recipients: unknown; deliveryJson?: unknown; [key: string]: unknown }) {
   const recipients = message.recipients as { to?: string[]; cc?: string[]; bcc?: string[] };
-  const hidden = new Set(recipients.bcc ?? []);
+  const hidden = new Set((recipients.bcc ?? []).map(address => address.toLowerCase()));
   const visible = new Set([...(recipients.to ?? []), ...(recipients.cc ?? [])]);
   const redact = (value: unknown): unknown => {
-    if (typeof value === "string") { for (const address of hidden) value = (value as string).replaceAll(address, "[hidden]"); return value; }
+    if (typeof value === "string") { for (const address of hidden) value = (value as string).replace(new RegExp(address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "[hidden]"); return value; }
     if (Array.isArray(value)) return value.filter(row => !row?.recipient || visible.has(row.recipient)).map(redact);
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).filter(([key]) => !hidden.has(key) && key !== "bcc").map(([key, item]) => [key, redact(item)]));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).filter(([key]) => !hidden.has(key.toLowerCase()) && key !== "bcc").map(([key, item]) => [key, redact(item)]));
     return value;
   };
   const events = Array.isArray(message.telemetryEvents) ? message.telemetryEvents as { id: string; type: string; recipient: string | null; occurredAt: unknown; receivedAt: unknown; reliability: string; source: string; data: unknown }[] : [];
