@@ -190,7 +190,7 @@ def extract_reports(payload, targets):
     for target in destinations:
         for part in parts:
             typ = part.get_content_type()
-            base = {"address": target["address"], "occurredAt": stamp(), "peerIp": peer, "verifiedDomains": verified[:5]}
+            base = {"address": target["address"], "targetRef": target["targetRef"], "occurredAt": stamp(), "peerIp": peer, "verifiedDomains": verified[:5]}
             name = part.get_filename() or ""
             if mime.get_content_type() == "multipart/report" and typ in ["message/disposition-notification", "message/feedback-report", "message/delivery-status", "message/global-delivery-status"]:
                 data = part.get_payload(decode=True)

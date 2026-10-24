@@ -11,7 +11,7 @@ const row = z.object({ ip: z.string().ip(), count: z.number().int().min(0).max(1
   dkimAuth: z.array(auth).max(20), spfAuth: z.array(auth).max(20) }).strict();
 const aggregate = z.object({ reportedDomain: z.string().regex(/^[a-z0-9.-]{1,253}$/), reporter: z.string().min(1).max(200), reportIdentifier: z.string().min(1).max(300),
   periodStart: z.string().datetime(), periodEnd: z.string().datetime(), filename: z.string().max(255), sourcesJson: z.array(row).max(10000) }).strict();
-export const incomingReportSchema = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/), address: z.string().email().max(320), peerIp: z.string().ip(),
+export const incomingReportSchema = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/), address: z.string().email().max(320), targetRef: z.string().regex(/^[a-f0-9]{64}$/), peerIp: z.string().ip(),
   occurredAt: z.string().datetime(), verifiedDomains: z.array(z.string().regex(/^[a-z0-9.-]{1,253}$/)).max(5), kind: z.enum(["dmarc", "mdn", "arf", "dsn"]),
   content: z.string().max(256000).optional(), originalHeaders: z.string().max(128000).optional(), report: aggregate.optional() }).strict();
 export async function reportTargets() {
@@ -28,12 +28,12 @@ export async function reportTargets() {
     const target = targets.find(item => item.organizationId === alias.organizationId && item.address === alias.destination.toLowerCase());
     if (target) targets.push({ ...target, address: alias.source.toLowerCase(), domain: alias.source.split("@")[1].toLowerCase(), kinds: ["dmarc"] });
   }
-  return targets;
+  return targets.map(target => ({ ...target, targetRef: digest([target.organizationId, target.mailboxId, target.accountId, target.address, target.domain]) }));
 }
 export async function ingestIncomingReport(input: z.infer<typeof incomingReportSchema>) {
   if (new Date(input.occurredAt).getTime() > Date.now() + 300000 || new Date(input.occurredAt).getTime() < Date.now() - 8 * 86400_000) throw Error("Outside intake window");
   const target = (await reportTargets()).find(row => row.address === input.address.toLowerCase());
-  if (!target) return false;
+  if (!target || target.targetRef !== input.targetRef) return false;
   if (input.kind === "dmarc") {
     if (!target.kinds.includes("dmarc") || !input.report || input.report.reportedDomain !== target.domain) return false;
     const report = input.report, periodStart = new Date(report.periodStart), periodEnd = new Date(report.periodEnd);

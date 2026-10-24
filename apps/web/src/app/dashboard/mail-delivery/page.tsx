@@ -22,6 +22,7 @@ export default async function MailDeliveryPage() {
   const connectors = await prisma.mailConnector.findMany({ where: { organizationId }, orderBy: [{ domain: "asc" }, { provider: "asc" }] });
   const domains = await prisma.domain.findMany({ where: { organizationId }, select: { fqdn: true } });
   const monitoredDomains = await prisma.mailMonitoredDomain.findMany({ where: { organizationId }, select: { domain: true } });
+  const dnsObservations = await prisma.mailObservation.findMany({ where: { organizationId, provider: "dns" }, orderBy: { fetchedAt: "desc" }, take: 500 });
   const alerts = await prisma.mailIncident.findMany({ where: { organizationId, status: "open" }, orderBy: { openedAt: "desc" }, take: 50 });
   const feedback = await prisma.mailTelemetryEvent.findMany({ where: { organizationId, type: { in: ["email.mdn", "email.complaint"] } }, orderBy: { receivedAt: "desc" }, take: 30 });
   const providerLabels: Record<string, string> = { dns: "DNS et authentification", google_postmaster: "Google Postmaster", microsoft_snds: "Microsoft SNDS", microsoft_jmrp: "Microsoft JMRP", yahoo_cfl: "Yahoo/AOL CFL", microsoft365_dmarc: "Rapports Microsoft 365", blocklists: "Listes de blocage autorisées" };
@@ -43,8 +44,13 @@ export default async function MailDeliveryPage() {
       {[...new Set([...domains.map(row => row.fqdn), ...monitoredDomains.map(row => row.domain)])].map(domain => <details key={domain} className="rounded border p-3"><summary>{domain}</summary><div className="mt-3 grid gap-3 md:grid-cols-2">{PROVIDERS.map(provider => {
         const connector = connectorPublic(connectors.find(row => row.domain === domain && row.provider === provider) ?? null, provider);
         return <div key={provider} className="rounded bg-zinc-50 p-3 text-sm"><strong>{providerLabels[provider]} · {labels[connector.state] ?? connector.state}</strong><p>{connector.coverage}</p>
-          <p>Dernière collecte réussie : {connector.lastSuccessfulCollectionAt?.toISOString() ?? "Inconnue"}</p>{connector.reason && <p className="text-amber-800">{connector.reason}</p>}{connector.action && <p>{connector.action}</p>}</div>;
-      })}</div></details>)}
+          <p>Dernière collecte réussie : {connector.lastSuccessfulCollectionAt?.toISOString() ?? "Inconnue"}</p><p>Échéance d’accès déclarée : {connector.expiresAt?.toISOString() ?? "Inconnue / non renseignée"}</p>{connector.reason && <p className="text-amber-800">{connector.reason}</p>}{connector.action && <p>{connector.action}</p>}</div>;
+      })}</div><div className="mt-3 text-sm">{(() => {
+        const observation = dnsObservations.find(row => row.domain === domain);
+        const value = observation?.data as { tls?: { value?: boolean | null; reason?: string }; results?: { ok: boolean; found?: string; required?: boolean; record: { name: string; type: string } }[] } | undefined;
+        return <><p>Dernière observation DNS : {observation?.fetchedAt.toISOString() ?? "Inconnue"}</p><p>TLS du service SMTP : {value?.tls?.value === true ? "Certificat vérifié" : value?.tls?.value === false ? "En défaut" : "Inconnu / vérification indisponible"}</p>
+          {value?.results?.filter(row => row.required).map((row, index) => <p key={index}>{row.record.type} · {row.record.name} : {row.ok ? "Vérifié lors du contrôle" : ["—", "Non disponible"].includes(row.found ?? "") || row.found?.includes("vérifiable") ? "Inconnu ou indisponible" : "À corriger"}</p>)}</>;
+      })()}</div></details>)}
     </section>
     <section className="space-y-3"><h2 className="font-semibold">Incidents ouverts</h2>{!alerts.length && <p className="text-sm">Aucun incident ouvert enregistré. Consulter les couvertures inconnues ci-dessus.</p>}
       {alerts.map(alert => <div key={alert.id} className="rounded border p-3 text-sm"><strong>{alert.domain} · {alert.summary}</strong><p>{alert.action}</p><p className="text-zinc-500">Observé le {alert.observedAt.toISOString()} · Référence {alert.id}</p></div>)}

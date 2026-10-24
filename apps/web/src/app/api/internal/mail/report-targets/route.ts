@@ -9,5 +9,5 @@ export async function GET(req: Request) {
   const failed = ["intake_busy", "invalid_report", "intake_unavailable", "forwarding_unavailable", "expired_reports"].includes(req.headers.get("X-Kod-Report-Error") ?? "");
   const lastError = failed ? "Collecte entrante partiellement indisponible ou rapport rejeté ; couverture incomplète" : null;
   await prisma.mailMonitorState.upsert({ where: { id: "incoming-report-bridge" }, create: { id: "incoming-report-bridge", lastError }, update: { checkedAt: new Date(), lastError } });
-  return Response.json({ targets: targets.map(row => ({ address: row.address, domain: row.domain, kinds: row.kinds })) });
+  return Response.json({ targets: targets.map(row => ({ address: row.address, domain: row.domain, kinds: row.kinds, targetRef: row.targetRef })) });
 }

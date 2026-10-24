@@ -137,7 +137,7 @@ export function connectorPublic(connector: MailConnector | null, provider: Provi
   const state = expired ? "authorization_required" : stale && !["error", "authorization_required"].includes(connector?.state ?? "") ? "stale" : connector?.state ?? "not_configured";
   return { provider, state, coverage: COVERAGE[provider], lastAttemptAt: connector?.lastAttemptAt ?? null,
     lastSuccessfulCollectionAt: connector?.lastSuccessAt ?? null, expiresAt: connector?.expiresAt ?? null,
-    freshness: stale ? "stale" : connector?.lastSuccessAt ? "fresh" : "unknown",
+    freshness: stale || state === "stale" ? "stale" : state === "insufficient_data" ? "unknown" : connector?.lastSuccessAt ? "fresh" : "unknown",
     reason: expired ? "authorization_expired" : connector?.lastError ?? (state === "not_configured" ? "configuration_or_authorization_missing" : state === "insufficient_data" ? "provider_returned_no_observations" : null),
     action: state === "authorization_required" ? "Renouveler l’accès ou confirmer la propriété dans le portail fournisseur." : state === "not_configured" ? "Configurer un accès autorisé ; vérifier les inscriptions existantes avant d’en créer." : state === "insufficient_data" ? "Attendre des rapports ou un volume suffisant ; aucune bonne réputation ne peut être déduite." : stale ? "Rétablir la collecte et vérifier sa dernière réussite." : null };
 }

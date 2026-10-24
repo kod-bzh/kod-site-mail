@@ -38,7 +38,7 @@ export async function pollDeliverability() {
       } else if (connector.provider === "google_postmaster" && connector.secretCipher) {
         const rows = await fetchGoogle(connector.domain, googleCredentials.parse(readConfiguration(connector)));
         for (const row of rows) await storeObservation(connector, row.start, row.end, row.data);
-        state = rows.length ? "active" : "insufficient_data"; success = true;
+        state = !rows.length ? "insufficient_data" : Math.max(...rows.map(row => row.end.getTime())) < Date.now() - 72 * 3600_000 ? "stale" : "active"; success = true;
       } else if (connector.provider === "microsoft_snds" && connector.secretCipher) {
         const config = sndsCredentials.parse(readConfiguration(connector));
         const response = await fetch(approvedSndsUrl(config.url), { redirect: "error", signal: AbortSignal.timeout(20_000) });
@@ -59,7 +59,8 @@ export async function pollDeliverability() {
           await storeObservation(connector, start, new Date(start.getTime() + 86400_000), { ip: row[indices[0]], reputation, sharedIp: true,
             complaintRate: null, numerator: null, denominator: null, absenceReason: "shared_ip_traffic_not_disclosed", inboxPlacementProven: false }, "ip"); count++;
         }
-        state = count ? "active" : "insufficient_data"; success = true;
+        const latest = await prisma.mailObservation.findFirst({ where: { organizationId: connector.organizationId, domain: connector.domain, provider: connector.provider }, orderBy: { periodEnd: "desc" } });
+        state = !count ? "insufficient_data" : latest && latest.periodEnd.getTime() < Date.now() - 72 * 3600_000 ? "stale" : "active"; success = true;
       } else if (connector.provider === "microsoft365_dmarc" && connector.secretCipher) {
         await collectGraphDmarc(connector, graphCredentials.parse(readConfiguration(connector))); state = "active"; success = true;
       } else if (connector.provider === "blocklists" && connector.secretCipher) {
@@ -105,9 +106,15 @@ export async function pollDeliverability() {
       summary: "Rapports DMARC reçus mais non exploitables", action: "Fournir une décryption autorisée pour l’historique chiffré ou corriger le format ; contrôler la collecte native avant chiffrement pour les prochains rapports.",
       evidence: { count: unreadableReports, source: "dmarc_report_diagnostics" } });
     const configured = await prisma.mailConnector.findMany({ where: { organizationId: domain.organizationId, domain: domain.fqdn, state: { not: "not_configured" } } });
-    for (const collector of configured) await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: `stale:${collector.provider}`,
-      active: !collector.lastSuccessAt || collector.lastSuccessAt.getTime() < Date.now() - (collector.provider === "dns" ? 2 : 72) * 3600_000,
-      summary: `Données ${collector.provider} non fraîches`, action: "Vérifier la dernière collecte réussie et les autorisations.", evidence: { provider: collector.provider, lastSuccessAt: collector.lastSuccessAt?.toISOString() ?? null } });
+    for (const collector of configured) {
+      await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: `stale:${collector.provider}`,
+        active: !collector.lastSuccessAt || collector.lastSuccessAt.getTime() < Date.now() - (collector.provider === "dns" ? 2 : 72) * 3600_000,
+        summary: `Données ${collector.provider} non fraîches`, action: "Vérifier la dernière collecte réussie et les autorisations.", evidence: { provider: collector.provider, lastSuccessAt: collector.lastSuccessAt?.toISOString() ?? null } });
+      if (collector.expiresAt) await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: `renewal:${collector.provider}`,
+        active: collector.expiresAt.getTime() < Date.now() + 7 * 86400_000, summary: "Autorisation fournisseur à renouveler",
+        action: "Renouveler le lien d’export, le secret ou la validation de propriété avant l’échéance déclarée.",
+        evidence: { source: "configured_access_expiry", provider: collector.provider, expiresAt: collector.expiresAt.toISOString(), advanceDays: 7 } });
+    }
     const stuck = await prisma.outboundMessage.count({ where: { organizationId: domain.organizationId, fromAddress: { endsWith: `@${domain.fqdn}` },
       status: { in: ["QUEUED", "SUBMITTED", "RESERVED"] }, createdAt: { lt: new Date(Date.now() - hours("MAIL_QUEUE_ALERT_HOURS", 2) * 3600_000), gte: new Date(Date.now() - 7 * 86400_000) } } });
     await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: "queue_delay", active: stuck > 0, summary: "Soumissions en attente prolongée",
@@ -116,6 +123,20 @@ export async function pollDeliverability() {
       OR: [{ event: { message: { fromAddress: { endsWith: `@${domain.fqdn}` } } } }, { telemetryEvent: { domain: domain.fqdn } }], createdAt: { gte: new Date(Date.now() - 86400_000) } } });
     await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: "webhook_failed", active: failed > 0, summary: "Notifications non confirmées après reprises",
       action: "Réparer la destination et rattraper les événements par API ; ne pas renvoyer les emails.", evidence: { count: failed, periodHours: 24 } });
+    for (const provider of ["google_postmaster", "microsoft_snds"]) {
+      const latest = await prisma.mailObservation.findFirst({ where: { organizationId: domain.organizationId, domain: domain.fqdn, provider }, orderBy: { periodEnd: "desc" } });
+      const recent = latest && latest.periodEnd.getTime() >= Date.now() - 72 * 3600_000;
+      const values = latest?.data as { domainReputation?: string | null; reputation?: string | null } | undefined;
+      const value = provider === "google_postmaster" ? values?.domainReputation : values?.reputation;
+      await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: `provider_reputation:${provider}`,
+        active: !recent || !value ? null : ["LOW", "BAD", "red", "yellow"].includes(value),
+        summary: provider === "google_postmaster" ? "Réputation Google défavorable" : "Réputation de l’IP Outlook.com à examiner",
+        action: "Examiner la métrique fournisseur, sa période et les rejets ; une IP partagée ne permet aucune attribution à une autre organisation.",
+        evidence: { provider, value: value ?? null, scope: provider === "google_postmaster" ? "domain" : "ip", evidenceRef: latest?.id ?? null, periodStart: latest?.periodStart.toISOString() ?? null, periodEnd: latest?.periodEnd.toISOString() ?? null } });
+      await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn, code: `provider_data_stale:${provider}`, active: latest ? !recent : null,
+        summary: "Statistiques fournisseur périmées", action: "Contrôler les droits et le volume disponible ; ne pas considérer une collecte HTTP réussie comme une statistique récente.",
+        evidence: { provider, evidenceRef: latest?.id ?? null, periodEnd: latest?.periodEnd.toISOString() ?? null } });
+    }
     const metrics = await smtpMetrics(domain.organizationId, domain.fqdn, new Date(Date.now() - 86400_000), new Date());
     for (const provider of metrics.providers ?? []) await setIncident({ organizationId: domain.organizationId, domain: domain.fqdn,
       code: `smtp_rejection:${provider.provider}`, active: provider.rejectionRate.value === null ? null : provider.rejectionRate.value >= hours("MAIL_SMTP_FAILURE_RATE", 0.05),

@@ -41,7 +41,7 @@ class ReportIntakeTest(unittest.TestCase):
         message.set_content("SECRET BODY NEVER PERSISTED")
         message.add_attachment(gzip.compress(xml()), maintype="application", subtype="gzip", filename="report.xml.gz")
         message.add_attachment(b"SECRET PDF NEVER PERSISTED", maintype="application", subtype="pdf", filename="invoice.pdf")
-        target = {"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"]}
+        target = {"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"], "targetRef": "f" * 64}
         raw = payload(message)
         events = intake.extract_reports(raw, [target])
         self.assertEqual(len(events), 1)
@@ -68,8 +68,8 @@ class ReportIntakeTest(unittest.TestCase):
         message["To"] = "user@example.org"
         message.set_content("Private normal message")
         message.add_attachment(xml(), maintype="application", subtype="xml", filename="report.xml")
-        self.assertEqual(intake.extract_reports(payload(message, "other@example.org"), [{"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"]}]), [])
-        self.assertEqual(intake.extract_reports(payload(message, "user@example.org"), [{"address": "user@example.org", "domain": "example.org", "kinds": ["feedback"]}]), [])
+        self.assertEqual(intake.extract_reports(payload(message, "other@example.org"), [{"address": "dmarc@example.org", "domain": "example.org", "kinds": ["dmarc"], "targetRef": "f" * 64}]), [])
+        self.assertEqual(intake.extract_reports(payload(message, "user@example.org"), [{"address": "user@example.org", "domain": "example.org", "kinds": ["feedback"], "targetRef": "f" * 64}]), [])
 
     def test_xml_entities_bombs_and_foreign_domains(self):
         with self.assertRaises(ValueError):
@@ -79,7 +79,7 @@ class ReportIntakeTest(unittest.TestCase):
         message = EmailMessage()
         message.set_content("Report")
         message.add_attachment(xml(), maintype="application", subtype="xml", filename="report.xml")
-        self.assertEqual(intake.extract_reports(payload(message), [{"address": "dmarc@example.org", "domain": "other.example", "kinds": ["dmarc"]}]), [])
+        self.assertEqual(intake.extract_reports(payload(message), [{"address": "dmarc@example.org", "domain": "other.example", "kinds": ["dmarc"], "targetRef": "f" * 64}]), [])
 
     @unittest.skipUnless(importlib.util.find_spec("dkim"), "Install requirements-mail-reports.txt for cryptographic fixture")
     def test_real_rsa_signature_and_native_header_reconstruction(self):
@@ -107,7 +107,7 @@ class ReportIntakeTest(unittest.TestCase):
         raw = b'From: fake@example.net\r\nTo: sender@example.org\r\nAuthentication-Results: mail.kod.bzh; dkim=pass header.d=arf.mail.yahoo.com\r\nContent-Type: multipart/report; report-type=disposition-notification; boundary="x"\r\n\r\n--x\r\nContent-Type: text/plain\r\n\r\nSECRET BODY\r\n--x\r\nContent-Type: message/disposition-notification\r\n\r\nOriginal-Message-ID: <opaque@example.org>\r\nFinal-Recipient: rfc822; recipient@example.net\r\nDisposition: manual-action/MDN-sent-manually; displayed\r\n\r\n--x--\r\n'
         from email.parser import BytesParser
         message = BytesParser(policy=policy.default).parsebytes(raw)
-        events = intake.extract_reports(payload(message, "sender@example.org"), [{"address": "sender@example.org", "domain": "example.org", "kinds": ["feedback"]}])
+        events = intake.extract_reports(payload(message, "sender@example.org"), [{"address": "sender@example.org", "domain": "example.org", "kinds": ["feedback"], "targetRef": "f" * 64}])
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["kind"], "mdn")
         self.assertEqual(events[0]["verifiedDomains"], [])
