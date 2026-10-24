@@ -47,6 +47,7 @@ export function safeMessage(message: { recipients: unknown; deliveryJson?: unkno
   const hidden = new Set((recipients.bcc ?? []).map(address => address.toLowerCase()));
   const visible = new Set([...(recipients.to ?? []), ...(recipients.cc ?? [])]);
   const redact = (value: unknown): unknown => {
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : null;
     if (typeof value === "string") { for (const address of hidden) value = (value as string).replace(new RegExp(address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "[hidden]"); return value; }
     if (Array.isArray(value)) return value.filter(row => !row?.recipient || visible.has(row.recipient)).map(redact);
     if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).filter(([key]) => !hidden.has(key.toLowerCase()) && key !== "bcc").map(([key, item]) => [key, redact(item)]));
