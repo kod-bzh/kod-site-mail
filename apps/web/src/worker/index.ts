@@ -1,3 +1,5 @@
+import { pollFeedbackReports } from "@/lib/mail/feedback";
+import { pollDeliverability } from "@/lib/mail/deliverability-monitor";
 import { pollDmarcReports } from "@/lib/mail/dmarc-monitor";
 import { pollOutbound } from "@/lib/mail/delivery";
 import { pollMailWebhooks } from "@/lib/mail/webhooks";
@@ -45,7 +47,11 @@ async function run() {
   const checkDelivery = async () => {
     if (deliveryPolling) return;
     deliveryPolling = true;
-    try { await pollOutbound(); await pollDsnReports(); await pollDmarcReports(); } catch (error) { console.error("Delivery monitoring unavailable", error instanceof Error ? error.message : "unknown"); }
+    try {
+      for (const poll of [pollOutbound, pollDsnReports, pollDmarcReports, pollFeedbackReports, pollDeliverability]) {
+        try { await poll(); } catch { console.error("Mail monitoring task unavailable", poll.name); }
+      }
+    }
     finally { deliveryPolling = false; }
   };
   void checkDelivery();

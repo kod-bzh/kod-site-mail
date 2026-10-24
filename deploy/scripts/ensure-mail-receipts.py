@@ -40,6 +40,16 @@ def configure():
             jmap([[kind + "/set", {"update": {matching[0]["id"]: desired}}, "s"]])
         else:
             jmap([[kind + "/set", {"create": {"kod-receipts": desired}}, "s"]])
+    # Dedicated incoming intake before encryption. Never modifies or rejects messages.
+    incoming = {"url": "http://127.0.0.1:8791/reports", "stages": {"data": True},
+                "enable": {"else": "is_empty(authenticated_as)"}, "tempFailOnError": False,
+                "timeout": 5000, "maxResponseSize": 4096,
+                "httpAuth": {"@type": "Bearer", "bearerToken": {"@type": "Value", "secret": secret}}, "httpHeaders": {}}
+    rows = jmap([["x:MtaHook/query", {}, "q"], ["x:MtaHook/get", {"#ids": {"resultOf": "q", "name": "x:MtaHook/query", "path": "/ids"}}, "g"]])
+    matches = [item for item in rows[1][1]["list"] if item.get("url") == incoming["url"]]
+    if len(matches) > 1:
+        raise RuntimeError("Duplicate report hook: manual review required")
+    jmap([["x:MtaHook/set", {"update": {matches[0]["id"]: incoming}} if matches else {"create": {"kod-reports": incoming}}, "s"]])
     jmap([["x:Action/set", {"create": {"receipt-reload": {"@type": "ReloadSettings"}}}, "a"]])
     print("Native mail receipt hooks configured (local only)")
 

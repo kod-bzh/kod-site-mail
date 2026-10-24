@@ -42,8 +42,8 @@ export async function pollDsnReports() {
             if (matching.length !== 1) continue;
             const original = matching[0];
             await ingestReceipt({ recipient: failure.recipient, smtpReply: failure.smtpReply, remoteMta: failure.remoteMta, rfcMessageId: original.rfcMessageId,
-              id: dsnEventId(`${accountId}:${message.id}`, failure.recipient, failure.smtpReply), type: "mail.bounced",
-              from: original.fromAddress, occurredAt: message.receivedAt });
+              id: dsnEventId(original.rfcMessageId, failure.recipient, failure.smtpReply), type: "mail.bounced",
+              from: original.fromAddress, reliability: "unverified_report", occurredAt: message.receivedAt });
           }
         }
         await markDsnProcessed(accountId, message.id);

@@ -78,3 +78,16 @@ describe("Stalwart outbound message", () => {
     expect(email.messageId).toEqual([expect.stringMatching(/^[a-f0-9-]+@example\.org$/)]);
   });
 });
+
+it("adds only the controlled MDN header on explicit request and keeps body/PDF bytes identical", async () => {
+  const bytes = Buffer.from("%PDF-1.4\nDemo only\n%%EOF");
+  const input = { ...base, attachments: [{ filename: "demo.pdf", content: bytes.toString("base64"), contentType: "application/pdf" }] };
+  const plain = await setup(); await plain.send(input);
+  const withReceipt = await setup(); await withReceipt.send({ ...input, requestReadReceipt: true });
+  const email = (calls: Array<[string, Record<string, unknown>, string]>) => (calls.find(row => row[0] === "Email/set")![1].create as Record<string, Record<string, unknown>>).e1;
+  expect(email(plain.calls)["header:Disposition-Notification-To:asText"]).toBeUndefined();
+  expect(email(withReceipt.calls)["header:Disposition-Notification-To:asText"]).toBe("sender@example.org");
+  expect(email(withReceipt.calls).bodyValues).toEqual(email(plain.calls).bodyValues);
+  expect(email(withReceipt.calls).bodyStructure).toEqual(email(plain.calls).bodyStructure);
+  expect(Buffer.from(withReceipt.uploads[0])).toEqual(bytes);
+});

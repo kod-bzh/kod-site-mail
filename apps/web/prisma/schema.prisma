@@ -116,6 +116,11 @@ model Organization {
   mailSuppressions   MailSuppression[]
   mailSendBudget     MailSendBudget?
   mailWebhooks       MailWebhook[]
+  mailMonitoredDomains MailMonitoredDomain[]
+  mailConnectors     MailConnector[]
+  mailObservations   MailObservation[]
+  mailIncidents      MailIncident[]
+  mailTelemetryEvents MailTelemetryEvent[]
   apiKeys            OrganizationApiKey[]
 }
 
@@ -202,6 +207,9 @@ model OutboundMessage {
   submissionId     String?
   rfcMessageId     String   @unique
   subject          String
+  requestReadReceipt Boolean @default(false)
+  readReceiptAddress String?
+  telemetryEvents MailTelemetryEvent[]
   recipients       Json
   recipientCount   Int
   status           String   @default("RESERVED")
@@ -216,6 +224,7 @@ model OutboundMessage {
   @@index([organizationId, createdAt])
   @@index([status, nextCheckAt])
   @@index([organizationId, submissionId])
+  @@unique([id, organizationId])
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
@@ -238,6 +247,8 @@ model MailWebhook {
   initiatorId    String
   url            String
   secretCipher   String
+  eventTypes     String[] @default([])
+  allowedDomains String[] @default([])
   createdAt      DateTime @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   attempts       MailWebhookAttempt[]
@@ -247,7 +258,8 @@ model MailWebhook {
 model MailWebhookAttempt {
   id          String @id @default(cuid())
   webhookId   String
-  eventId     String
+  eventId     String?
+  telemetryEventId String?
   attempts    Int @default(0)
   nextAttempt DateTime @default(now())
   leaseUntil  DateTime?
@@ -256,8 +268,10 @@ model MailWebhookAttempt {
   lastError   String?
   createdAt   DateTime @default(now())
   webhook     MailWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-  event       MailDeliveryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  telemetryEvent MailTelemetryEvent? @relation(fields: [telemetryEventId], references: [id], onDelete: Cascade)
+  event       MailDeliveryEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
   @@unique([webhookId, eventId])
+  @@unique([webhookId, telemetryEventId])
   @@index([completedAt, nextAttempt])
 }
 
@@ -510,6 +524,7 @@ model MigrationEvent {
 
 /// Clé API organisation — envoi mail transactionnel et intégrations externes
 model OrganizationApiKey {
+  allowedMailDomains String[] @default([])
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -589,7 +604,11 @@ model DmarcReport {
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   mailboxId         String
   sourceMessageId   String
+  sourceReceivedAt  DateTime?
   filename          String
+  semanticKey       String? @unique
+  provenance        String @default("unverified_report")
+  intakeEvidence    Json?
   reporter          String?
   reportedDomain    String?
   reportIdentifier  String?
@@ -602,4 +621,88 @@ model DmarcReport {
   error             String?
   createdAt         DateTime @default(now())
   @@index([organizationId, createdAt])
+}
+
+/// OAuth/feed credentials are encrypted server-side. No shared-IP traffic is exposed to tenants.
+model MailConnector {
+  id String @id @default(cuid())
+  organizationId String
+  domain String
+  provider String
+  state String @default("not_configured")
+  secretCipher String?
+  settings Json?
+  lastAttemptAt DateTime?
+  lastSuccessAt DateTime?
+  lastError String?
+  expiresAt DateTime?
+  nextCheckAt DateTime @default(now())
+  leaseUntil DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, domain, provider])
+  @@index([nextCheckAt])
+}
+model MailObservation {
+  id String @id
+  organizationId String
+  domain String
+  provider String
+  source String
+  scope String @default("domain")
+  periodStart DateTime
+  periodEnd DateTime
+  observedAt DateTime
+  fetchedAt DateTime @default(now())
+  data Json
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, domain, provider, periodEnd])
+}
+model MailIncident {
+  id String @id @default(cuid())
+  organizationId String
+  domain String
+  fingerprint String
+  code String
+  severity String
+  status String @default("open")
+  summary String
+  action String
+  evidence Json
+  openedAt DateTime @default(now())
+  observedAt DateTime @default(now())
+  resolvedAt DateTime?
+  generation Int @default(1)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, status, observedAt])
+}
+/// Minimal structured feedback only, never original MIME, invoice or body.
+model MailTelemetryEvent {
+  id String @id
+  organizationId String
+  domain String
+  messageId String?
+  recipient String?
+  type String
+  source String
+  reliability String
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+  data Json
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message OutboundMessage? @relation(fields: [messageId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  attempts MailWebhookAttempt[]
+  @@index([organizationId, domain, receivedAt, id])
+  @@index([messageId, occurredAt])
+}
+
+/// Observation-only domains: never provisioned in SMTP or used to replace external MX.
+model MailMonitoredDomain {
+  id String @id @default(cuid())
+  organizationId String
+  domain String @unique
+  authorizedAt DateTime @default(now())
+  authorizationSource String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
 }

@@ -15,6 +15,7 @@ export class MailPolicyError extends Error {
 export async function reserveOutbound(input: {
   organizationId: string; accountId: string; fromAddress: string; subject: string;
   recipients: { to: string[]; cc: string[]; bcc: string[] }; initiatorId?: string;
+  requestReadReceipt?: boolean; readReceiptAddress?: string | null;
 }) {
   const addresses = [...input.recipients.to, ...input.recipients.cc, ...input.recipients.bcc];
   return prisma.$transaction(async tx => {

@@ -1,0 +1,11 @@
+# Root context is only used for the structured mail receipt image.
+# Never send deployment secrets, mail data or application worktrees to Docker.
+*
+!deploy/
+deploy/*
+!deploy/docker/
+deploy/docker/*
+!deploy/docker/Dockerfile.mail-receipts
+!deploy/scripts/
+deploy/scripts/*
+!deploy/scripts/requirements-mail-reports.txt

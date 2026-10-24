@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export const API_KEY_PREFIX = "framm_";
 export const MAIL_SEND_SCOPE = "mail:send";
+export const DELIVERABILITY_READ_SCOPE = "deliverability:read";
 export const DOMAIN_READ_SCOPE = "domains:read";
 export const DOMAIN_WRITE_SCOPE = "domains:write";
 export const API_KEY_WRITE_SCOPE = "api_keys:write";
@@ -16,6 +17,7 @@ export const MCP_DEFAULT_SCOPES = [
 ] as const;
 
 export const ALL_API_SCOPES = [
+  DELIVERABILITY_READ_SCOPE,
   MAIL_SEND_SCOPE,
   DOMAIN_READ_SCOPE,
   DOMAIN_WRITE_SCOPE,
@@ -39,6 +41,7 @@ export type VerifiedApiKey = {
   id: string;
   organizationId: string;
   scopes: string[];
+  allowedMailDomains?: string[];
 };
 
 export async function verifyBearerApiKey(
@@ -56,6 +59,7 @@ export async function verifyBearerApiKey(
       id: true,
       organizationId: true,
       scopes: true,
+      allowedMailDomains: true,
       revokedAt: true,
     },
   });
@@ -71,6 +75,7 @@ export async function verifyBearerApiKey(
     id: record.id,
     organizationId: record.organizationId,
     scopes: record.scopes,
+    allowedMailDomains: record.allowedMailDomains,
   };
 }
 
@@ -83,6 +88,7 @@ export async function createOrganizationApiKey(input: {
   name: string;
   createdById?: string;
   scopes?: string[];
+  allowedMailDomains?: string[];
 }): Promise<{ id: string; token: string; prefix: string }> {
   const token = generateApiKeySecret();
   const prefix = token.slice(0, 12);
@@ -95,6 +101,7 @@ export async function createOrganizationApiKey(input: {
       keyPrefix: prefix,
       keyHash,
       scopes: input.scopes ?? [MAIL_SEND_SCOPE],
+      allowedMailDomains: input.allowedMailDomains ?? [],
       createdById: input.createdById,
     },
     select: { id: true },

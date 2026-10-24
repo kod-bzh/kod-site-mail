@@ -41,6 +41,19 @@ jobs:
   test-web:
     name: Test web
     runs-on: ubuntu-latest
+    services:
+      mail-test-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kodtest
+          POSTGRES_PASSWORD: kodtest-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: apps/web
@@ -56,6 +69,17 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - name: Apply real migrations and verify mail isolation/outbox invariants
+        env:
+          DATABASE_URL: postgresql://postgres:kodtest-ci-only@127.0.0.1:5432/kodtest
+        run: |
+          npx prisma migrate deploy
+          docker exec -i '${{ job.services.mail-test-postgres.id }}' psql -v ON_ERROR_STOP=1 -U postgres -d kodtest < ../../deploy/tests/mail-deliverability-db.sql
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install mail report verification test dependencies
+        run: python3 -m pip install -r ../../deploy/scripts/requirements-mail-reports.txt
       - name: Mail routing and DKIM safety tests
         run: python3 -m unittest discover -s ../../deploy/tests -p 'test_*.py' -v
       - run: npm run build -- --webpack

@@ -52,6 +52,7 @@ export function getMailSendApiGuide() {
       text: "string — optionnel si html est fourni",
       html: "string — optionnel si text est fourni",
       replyTo: "string — optionnel",
+      requestReadReceipt: "boolean facultatif, false par défaut ; multipart : chaîne exacte true ou false. Demande MDN RFC 8098 vers la boîte From contrôlée ; corps inchangé. L’absence de réponse reste inconnue ; un accusé ne prouve pas une lecture humaine.",
       cc: "string ou string[] — optionnel, 1 à 50 adresses, visibles dans Cc",
       bcc: "string ou string[] — optionnel, 1 à 50 adresses, uniquement dans l’enveloppe de livraison (aucun en-tête Bcc)",
       attachments: "{ filename, content, contentType? }[] — content en base64 canonique, filename non vide, contentType par défaut application/octet-stream ; total maximal 50 Mo (50 000 000 octets décodés). Tout fichier invalide annule l’envoi, avec son index et la cause dans detail.",
@@ -93,6 +94,16 @@ export function getMailSendApiGuide() {
       signature: "X-Kod-Event-Id, X-Kod-Timestamp (secondes Unix), X-Kod-Signature = v1=<hex HMAC-SHA256(signingSecret, timestamp + '.' + corps HTTP brut)>. Vérifier en temps constant avant JSON.parse et refuser un horodatage distant de plus de 5 minutes.",
       retries: "Répondre 2xx après enregistrement durable. Livraison au moins une fois : dédupliquer par id, gérer les événements arrivant dans le désordre. Jusqu’à 12 essais pendant 24 h, sans suivre de redirection. Aucun renvoi de l’email lors d’un nouvel essai de webhook. Après expiration, consulter GET /mail/messages.",
     },
+    deliverability: {
+      scope: "deliverability:read, à accorder explicitement ; allowedMailDomains limite les domaines de la clé. Les envois et leurs preuves restent liés à la clé émettrice.",
+      openapi: `${base}/api/v1/mail/openapi`,
+      routes: ["GET /api/v1/mail/deliverability", "GET /api/v1/mail/domains/{domain}/health", "GET /api/v1/mail/domains/{domain}/reputation", "GET /api/v1/mail/domains/{domain}/dmarc", "GET /api/v1/mail/alerts", "GET /api/v1/mail/connectors", "GET /api/v1/mail/events", "GET /api/v1/mail/suppressions"],
+      absence: "Valeurs indisponibles null, avec raison, source, période, collecte, fraîcheur et référence. Google : Gmail personnel ; SNDS/JMRP : Outlook.com ; Yahoo : ARF, pas d’API Insights. Aucune attribution individuelle des statistiques ou plaintes anonymisées.",
+      receipts: "GET /mail/messages ajoute readReceipt et telemetryEvents. requestMade est la demande de l’application ; submissionConfirmed confirme la soumission. receiptReceived=null tant qu’aucun MDN n’est observé. Un retour déclaré porte sa source et sa fiabilité, séparément de l’acceptation SMTP.",
+      subscribe: 'POST /mail/webhooks {url,eventTypes:["email.complaint","email.mdn","deliverability.incident.opened","deliverability.incident.resolved"]}, même clé avec deliverability:read. Les événements SMTP restent inchangés ; les nouveaux événements sont facultatifs.',
+      catchup: "GET /mail/events?since=<ISO>&until=<ISO>&limit=50, suivre nextCursor avec la même période. Tri par receivedAt, pas occurredAt. Reprendre avec chevauchement, dédupliquer par id et relire l’état courant après notification désordonnée. Maximum 90 jours.",
+      safety: "Aucun bouton, pixel, lien ni corps ajouté. Aucune tâche de collecte ou de notification ne soumet un email. Les suppressions explicites restent visibles et bloquent avec une erreur, jamais silencieusement.",
+    },
     protections: {
       limits: "Par défaut : 20 messages/minute et 200 destinataires/24 h par organisation (toutes clés et pods confondus). Ajustables par l’administrateur après contrôle de réputation.",
       suppressions: "Adresses inexistantes confirmées (5.1.1, 5.1.2, 5.1.3, 5.1.6) bloquées automatiquement. Refus anti-spam 5.7 et pannes temporaires exclus. Un destinataire bloqué annule l’envoi entier.",
@@ -112,7 +123,7 @@ export function getMailSendApiGuide() {
       "422 recipient_suppressed": "Adresse bloquée : aucun destinataire contacté.",
       "429 rate_limited": "Budget progressif de l’organisation atteint ; aucun envoi effectué.",
       "503 smtp_not_configured": "Aucune boîte Stalwart pour cet expéditeur — appeler ensure_mailbox",
-      "502 send_failed": "Stalwart a refusé l'envoi (detail dans la réponse)",
+      "502 send_failed": "Résultat potentiellement incertain ; consulter le suivi avant toute décision, jamais de renvoi automatique.",
     },
     examples: {
       curlMultipart: [
@@ -192,6 +203,7 @@ export function getMailSendApiInstructions(): string {
     "cc et bcc : string ou string[], priorité to > cc > bcc, Bcc invisible. attachments : [{ filename, content (base64), contentType? }], maximum 50 Mo décodés ; erreur explicite par fichier. Pas de templates Resend.",
     "Alternative HTTP sans Base64 : multipart/form-data sur le même endpoint ; champs texte from, to, subject, text/html, replyTo, cc, bcc et parties fichiers attachments répétées. Pour plusieurs adresses, répéter to/cc/bcc ou utiliser un tableau JSON. Maximum 50 Mo cumulés et 100 fichiers. Laisser curl/FormData générer le boundary. Si l’outil MCP ne propose pas ce transport, utiliser l’API HTTP.",
     "Après envoi : conserver trackingId et lire GET /api/v1/mail/messages?messageId=<trackingId>. ACCEPTED avec preuve SMTP = accepté par le serveur distant, pas preuve de boîte principale ou lecture. UNKNOWN n’est jamais un succès. Notifications signées : POST /api/v1/mail/webhooks avec la même clé et une URL HTTPS publique ; lire le guide pour vérifier HMAC, horodatage et doublons.",
+    "Surveillance : scope dédié deliverability:read, routes deliverability/connectors/alerts et domains/{domain}/health,reputation,dmarc. requestReadReceipt facultatif false par défaut, booléen JSON ou chaîne true/false en multipart ; MDN sans changement de corps. Absence de réponse inconnue. Lire le contrat /api/v1/mail/openapi et le guide pour les événements plainte/MDN/incident et leur rattrapage.",
     "Pour le guide complet (mapping Resend, curl, fetch, erreurs) : appeler explain_mail_send_api.",
     "Provisionnement : add_domain prépare noreply → get_api_key → send_mail immédiatement. En parallèle : get_dns_records → publication SPF/DKIM/DMARC → verify_domain. Les MX restent inchangés pour un usage envoi uniquement.",
     "Jeton admin : passer organizationSlug (ou header X-Framm-Organization).",

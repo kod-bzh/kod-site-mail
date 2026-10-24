@@ -15,6 +15,7 @@ export type V1Actor = {
   apiKeyId?: string;
   userId?: string;
   scopes: string[];
+  allowedMailDomains?: string[];
 };
 
 export function extractBearerToken(authorization: string | null): string | null {
@@ -48,6 +49,7 @@ export async function resolveV1Actor(
     organizationId: apiKey.organizationId,
     apiKeyId: apiKey.id,
     scopes: apiKey.scopes,
+    allowedMailDomains: apiKey.allowedMailDomains,
   };
 }
 

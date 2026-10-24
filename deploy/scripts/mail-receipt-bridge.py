@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Loopback-only, durable SMTP receipts. Never stores message bodies or attachments."""
+from contextlib import contextmanager
+import importlib.util
 import hashlib
 import hmac
 import json
@@ -76,8 +78,14 @@ class Store:
             db.execute("CREATE TABLE IF NOT EXISTS bindings (queue_id TEXT PRIMARY KEY, rfc_id TEXT NOT NULL, sender TEXT NOT NULL, recipients TEXT NOT NULL, created REAL NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS receipts (id TEXT PRIMARY KEY, payload TEXT NOT NULL, created REAL NOT NULL, next_retry REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent REAL)")
 
+    @contextmanager
     def connection(self):
-        return sqlite3.connect(self.path, timeout=10)
+        db = sqlite3.connect(self.path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def bind(self, metadata):
         context, envelope = metadata["context"], metadata["envelope"]
@@ -155,6 +163,14 @@ def serve():
     path = os.environ.get("MAIL_RECEIPT_DB", "/var/lib/framm-mail-receipts/receipts.sqlite")
     Path(path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     store = Store(path)
+    report_path = Path(__file__).with_name("mail-report-intake.py")
+    reports = None
+    if report_path.exists():
+        spec = importlib.util.spec_from_file_location("mail_report_intake", report_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        reports = module.ReportIntake(store)
+    report_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -172,6 +188,7 @@ def serve():
             self.reply(200 if self.path == "/health" else 404, {"ok": True})
 
         def do_POST(self):
+            has_report_lock = False
             self.connection.settimeout(10)
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -198,6 +215,47 @@ def serve():
                         raise ValueError("Missing metadata")
                     store.bind(metadata)
                     return self.reply(200, {"action": "accept"})
+                if self.path == "/reports":
+                    if not reports or not hmac.compare_digest(self.headers.get("Authorization", ""), "Bearer " + key.hex()):
+                        return self.reply(401, {})
+                    if not 0 < length <= 100_000_000:
+                        return self.reply(413, {})
+                    if not report_lock.acquire(blocking=False):
+                        reports.fail("intake_busy")
+                        return self.reply(503, {"error": "report_intake_busy"})
+                    has_report_lock = True
+                    # Inspect only the bounded prefix until the target/header selection is known.
+                    prefix, metadata, selected = bytearray(), None, False
+                    remaining = length
+                    while remaining:
+                        chunk = self.rfile.read(min(65536, remaining))
+                        if not chunk:
+                            raise ValueError("Interrupted report hook")
+                        remaining -= len(chunk)
+                        if metadata is None or selected:
+                            prefix.extend(chunk)
+                            if metadata is None:
+                                try:
+                                    metadata = metadata_prefix(prefix)
+                                    recipients = {row.get("address", "").lower() for row in metadata["envelope"].get("to", [])}
+                                    content_type = [v for k, v in metadata["headers"] if k.lower() == "content-type"]
+                                    matching = [target for target in reports.targets if target["address"] in recipients]
+                                    types = ["multipart/report"] + (["multipart/mixed", "application/zip", "application/gzip", "text/xml", "application/xml"] if any("dmarc" in target["kinds"] for target in matching) else [])
+                                    selected = bool(matching) and len(content_type) == 1 and any(kind in content_type[0].lower() for kind in types)
+                                    if not selected:
+                                        prefix.clear()
+                                except (ValueError, UnicodeDecodeError):
+                                    if len(prefix) > MAX_PREFIX:
+                                        raise ValueError("Report metadata limit")
+                            if selected and len(prefix) > 8_000_000:
+                                raise ValueError("Report request limit")
+                    if selected:
+                        try:
+                            reports.ingest(json.loads(prefix))
+                        except (ValueError, KeyError, TypeError):
+                            reports.fail("invalid_report")
+                            print("Rejected malformed structured report; content not retained", flush=True)
+                    return self.reply(200, {"action": "accept"})
                 if self.path == "/events":
                     if not 0 < length <= 2_000_000:
                         return self.reply(413, {})
@@ -210,12 +268,20 @@ def serve():
                     return self.reply(200, {"ok": True})
                 self.reply(404, {})
             except Exception:
+                if reports and self.path == "/reports":
+                    reports.fail("intake_unavailable")
                 self.reply(503, {"error": "receipt_unavailable"})
+            finally:
+                if has_report_lock:
+                    report_lock.release()
 
     def forward_loop():
         while True:
             try:
-                store.forward(os.environ.get("MAIL_RECEIPT_URL", "https://kod.bzh/api/internal/mail/receipts"), key)
+                endpoint = os.environ.get("MAIL_RECEIPT_URL", "https://kod.bzh/api/internal/mail/receipts")
+                store.forward(endpoint, key)
+                if reports:
+                    reports.forward(endpoint, key)
             except Exception:
                 print("Receipt processing unavailable; will retry", flush=True)
             time.sleep(2)

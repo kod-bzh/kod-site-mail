@@ -47,7 +47,7 @@ export async function parseMailSendRequest(req: Request): Promise<{ input: SendI
   const cleanup = async () => { await rm(directory, { recursive: true, force: true }).catch(() => { console.error("[mail] Temporary upload cleanup failed"); }); };
   const controller = new AbortController();
   const signal = AbortSignal.any([req.signal, controller.signal, AbortSignal.timeout(120_000)]);
-  const fields: Record<string, string | string[]> = Object.create(null);
+  const fields: Record<string, string | string[] | boolean> = Object.create(null);
   const uploads: UploadedAttachment[] = [];
   const writes: Promise<void>[] = [];
   let total = 0, received = 0, fileIndex = 0, failure: MailRequestError | undefined;
@@ -68,6 +68,10 @@ export async function parseMailSendRequest(req: Request): Promise<{ input: SendI
       const previous = fields[name];
       fields[name] = [...(Array.isArray(previous) ? previous : previous ? [previous] : []), ...values];
       return;
+    }
+    if (name === "requestReadReceipt") {
+      if (name in fields || !["true", "false"].includes(value)) return fail(invalidBody("requestReadReceipt doit être true ou false"));
+      fields[name] = value === "true"; return;
     }
     if (!["from", "subject", "text", "html", "replyTo"].includes(name)) return fail(invalidBody(`Champ multipart inconnu : ${name}`));
     if (name in fields) return fail(invalidBody(`Champ ${name} répété`));

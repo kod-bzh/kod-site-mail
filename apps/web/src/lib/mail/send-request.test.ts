@@ -79,3 +79,14 @@ describe("streaming mail uploads", () => {
     expect(await readdir(directory)).toEqual([]);
   });
 });
+
+it("accepts strict optional MDN flags in JSON/multipart and rejects ambiguous coercions", async () => {
+  for (const value of [true, false]) {
+    const json = await parseMailSendRequest(new Request("https://kod.bzh/api/v1/mail/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...fields, requestReadReceipt: value }) }));
+    expect(json.input.requestReadReceipt).toBe(value);
+    const multipart = await parseMailSendRequest(request({ ...fields, requestReadReceipt: String(value) }));
+    expect(multipart.input.requestReadReceipt).toBe(value); await multipart.cleanup();
+  }
+  for (const value of ["yes", "1", "TRUE", "false\r\nBcc: victim@example.net"]) await expect(parseMailSendRequest(request({ ...fields, requestReadReceipt: value }))).rejects.toMatchObject({ status: 400 });
+  await expect(parseMailSendRequest(new Request("https://kod.bzh/api/v1/mail/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...fields, requestReadReceipt: "false" }) }))).rejects.toMatchObject({ status: 400 });
+});
