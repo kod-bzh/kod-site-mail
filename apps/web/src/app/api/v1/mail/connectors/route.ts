@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       if (!mailbox?.stalwartAccountId) throw Error("Mailbox not authorized");
     }
     const data = { settings: body.settings, ...(credentials ? { secretCipher: secretConfiguration(credentials) } : {}),
-      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null, state: "insufficient_data", lastError: null, nextCheckAt: new Date() };
+      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null, state: "insufficient_data", lastError: null, nextCheckAt: new Date(), leaseUntil: null };
     const connector = await prisma.mailConnector.upsert({ where: { organizationId_domain_provider: { organizationId: org.organizationId, domain: body.domain, provider: body.provider } },
       create: { organizationId: org.organizationId, domain: body.domain, provider: body.provider, ...data }, update: data });
     await prisma.auditLog.create({ data: { organizationId: org.organizationId, action: "mail.connector.configure", target: `${body.domain}:${body.provider}`, metadata: { credentialsProvided: !!credentials } } });
