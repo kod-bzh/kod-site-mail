@@ -7,17 +7,18 @@ type BrandLogoProps = {
   href?: string;
   className?: string;
   size?: "sm" | "md";
+  tone?: "default" | "white";
 };
 
-export function BrandLogo({ alt, href, className, size = "md" }: BrandLogoProps) {
-  const height = size === "sm" ? 32 : 40;
+export function BrandLogo({ alt, href, className, size = "md", tone = "default" }: BrandLogoProps) {
+  const height = size === "sm" ? 52 : 68;
 
   const img = (
     <Image
-      src="/logo-kod-digor.png"
+      src={`/brand/kod-bzh/logos/kod-bzh-h${tone === "white" ? "-white" : ""}.png`}
       alt={alt}
-      width={1024}
-      height={241}
+      width={1220}
+      height={660}
       style={{ height, width: "auto", maxWidth: "100%" }}
       className="object-contain object-left"
       priority

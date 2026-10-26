@@ -24,7 +24,7 @@ export function ProductCard({ slug }: ProductCardProps) {
   return (
     <Link
       href={`/roadmap/${product.slug}`}
-      className="group flex flex-col rounded-xl border border-canal bg-white p-5 transition-colors hover:border-encre/30 hover:bg-encre-muted/20"
+      className="group flex flex-col rounded-xl border border-canal bg-paper p-5 transition-colors hover:border-encre/30 hover:bg-encre-muted/20"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex size-10 items-center justify-center rounded-lg bg-encre-muted">
@@ -41,7 +41,7 @@ export function ProductCard({ slug }: ProductCardProps) {
       <p className="mt-3 font-mono-data text-xs text-ardoise/40">
         {tr("phases", { count: phaseCount })} · {tr("tasks", { count: taskCount })}
       </p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-encre opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-encre transition-colors group-hover:underline">
         {tr("viewDetail")}
         <ArrowRight className="size-3.5" aria-hidden />
       </span>

@@ -33,7 +33,7 @@ export function FilteredProductGrid() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as ProductCategory | "all")}
-            className="rounded-md border border-canal bg-white px-3 py-1.5 text-sm text-ardoise"
+            className="rounded-md border border-canal bg-paper px-3 py-1.5 text-sm text-ardoise"
           >
             <option value="all">{t("filterAll")}</option>
             {PRODUCT_CATEGORIES.map((cat) => (
@@ -48,7 +48,7 @@ export function FilteredProductGrid() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ProductStatus | "all")}
-            className="rounded-md border border-canal bg-white px-3 py-1.5 text-sm text-ardoise"
+            className="rounded-md border border-canal bg-paper px-3 py-1.5 text-sm text-ardoise"
           >
             <option value="all">{t("filterAll")}</option>
             {PRODUCT_STATUSES.map((s) => (

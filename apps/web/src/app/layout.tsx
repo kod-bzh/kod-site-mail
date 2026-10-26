@@ -5,9 +5,10 @@ import { fontVariables } from "@/lib/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kod Digor — Numérique libre et souverain",
+  title: "Kod BZH — Association du libre",
   description:
-    "Association bretonne créant un écosystème numérique complet — messagerie, drive, bureautique, IA — souverain, chiffré et à prix justes.",
+    "Kod BZH développe, finance et héberge des logiciels libres. Un numérique libre, souverain et commun, au service des personnes en Bretagne et en Europe.",
+  icons: { icon: "/icon.svg" },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

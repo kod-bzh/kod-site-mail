@@ -13,7 +13,7 @@ export async function SchematicSection() {
   ];
 
   return (
-    <section className="border-y border-canal bg-white px-6 py-16">
+    <section className="border-y border-canal bg-paper px-6 py-16">
       <div className="mx-auto max-w-4xl text-center">
         <h2 className="text-xl font-semibold text-ardoise">{t("schematic.title")}</h2>
         <div className="mt-8 flex flex-col items-center gap-6">
@@ -25,7 +25,7 @@ export async function SchematicSection() {
               <Link
                 key={label}
                 href={href}
-                className="flex items-center gap-2 rounded-lg border border-canal bg-white px-4 py-2 text-sm text-ardoise/80 transition-colors hover:border-encre/30 hover:text-encre"
+                className="flex items-center gap-2 rounded-lg border border-canal bg-paper px-4 py-2 text-sm text-ardoise/80 transition-colors hover:border-encre/30 hover:text-encre"
               >
                 <Icon className="size-4 text-encre" aria-hidden />
                 {label}

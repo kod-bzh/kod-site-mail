@@ -10,26 +10,17 @@ const AUDIENCES = [
 
 export async function AudienceStrip() {
   const t = await getT("association");
-
   return (
-    <section className="px-6 py-20">
+    <section id="pour-qui" className="px-6 py-20">
       <div className="mx-auto max-w-6xl">
-        <h2 className="text-center text-2xl font-semibold tracking-tight text-ardoise sm:text-3xl">
-          {t("audiences.title")}
-        </h2>
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <p className="brand-eyebrow text-ardoise/60">{t("audiences.title")}</p>
+        <h2 className="brand-heading mt-5 max-w-3xl text-5xl sm:text-6xl">{t("audiences.headline")}</h2>
+        <ul className="mt-12 grid border-t border-canal sm:grid-cols-2 lg:grid-cols-4">
           {AUDIENCES.map(({ key, icon: Icon, descKey }) => (
-            <li
-              key={key}
-              className="rounded-xl border border-canal bg-white p-6 text-center"
-            >
-              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-encre-muted">
-                <Icon className="size-6 text-encre" aria-hidden />
-              </div>
-              <h3 className="mt-4 font-medium text-ardoise">{t(`audiences.${key}`)}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ardoise/60">
-                {t(`audiences.${descKey}`)}
-              </p>
+            <li key={key} className="px-1 py-8 sm:pr-6 lg:not-first:border-l lg:not-first:border-canal lg:not-first:pl-6">
+              <Icon className="size-7 text-encre" strokeWidth={1.6} aria-hidden />
+              <h3 className="brand-heading mt-5 text-3xl">{t(`audiences.${key}`)}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ardoise/65">{t(`audiences.${descKey}`)}</p>
             </li>
           ))}
         </ul>

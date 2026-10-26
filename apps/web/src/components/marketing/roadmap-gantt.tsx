@@ -118,7 +118,7 @@ export function RoadmapGantt({ slug }: RoadmapGanttProps) {
 
       <p className="text-xs text-ardoise/50 sm:hidden">{t("gantt.scrollHint")}</p>
 
-      <div className="overflow-x-auto rounded-xl border border-canal bg-white">
+      <div className="overflow-x-auto rounded-xl border border-canal bg-paper">
         <div style={{ minWidth: LABEL_WIDTH + gridWidth + 16 }}>
           <div className="flex border-b border-canal bg-neutral-50/80">
             <div
@@ -155,7 +155,7 @@ export function RoadmapGantt({ slug }: RoadmapGanttProps) {
                   key={`${from}-${to}`}
                   d={d}
                   fill="none"
-                  stroke="#0c4a6e"
+                  stroke="#1612d3"
                   strokeWidth="1.5"
                   strokeOpacity="0.35"
                   markerEnd="url(#arrowhead)"
@@ -170,7 +170,7 @@ export function RoadmapGantt({ slug }: RoadmapGanttProps) {
                   refY="3"
                   orient="auto"
                 >
-                  <polygon points="0 0, 6 3, 0 6" fill="#0c4a6e" fillOpacity="0.5" />
+                  <polygon points="0 0, 6 3, 0 6" fill="#1612d3" fillOpacity="0.5" />
                 </marker>
               </defs>
             </svg>

@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "Kod Digor",
-    "appTagline": "Votre espace numérique multi-tenant",
+    "appName": "Kod BZH",
+    "appTagline": "Association du libre",
     "login": "Se connecter",
     "signup": "S'inscrire",
     "logout": "Se déconnecter",
@@ -16,7 +16,7 @@
   },
   "landing": {
     "title": "Vos outils numériques. Vos données. Votre liberté.",
-    "subtitle": "Kod Digor construit un écosystème complet — messagerie, drive, bureautique, IA et plus — hébergé en Europe, chiffré, à prix justes, sans objectif commercial.",
+    "subtitle": "Kod BZH construit un écosystème complet — messagerie, drive, bureautique, IA et plus — hébergé en Europe, chiffré, à prix justes, sans objectif commercial.",
     "ctaLogin": "Se connecter",
     "ctaSignup": "Créer un espace",
     "audiences": {
@@ -45,7 +45,7 @@
     "sessionExpired": "Votre session n'est plus valide pour cette base de données. Reconnectez-vous.",
     "emailLocalPlaceholder": "prenom.nom",
     "emailDomainLabel": "Domaine e-mail",
-    "emailHint": "Utilisez une adresse @{domain} fournie par Kod Digor."
+    "emailHint": "Utilisez une adresse @{domain} fournie par Kod BZH."
   },
   "oauth": {
     "title": "Autoriser un client MCP",
@@ -565,7 +565,7 @@
     "deleting": "Suppression…",
     "deleteConfirm": "Supprimer le domaine {fqdn} ? Cette action est irréversible.",
     "deleteSuccess": "Le domaine {domain} a été supprimé.",
-    "deletePlatform": "Le domaine plateforme Kod Digor ne peut pas être supprimé.",
+    "deletePlatform": "Le domaine plateforme Kod BZH ne peut pas être supprimé.",
     "deleteMailboxes": "Supprimez d'abord les boîtes mail du domaine {domain}.",
     "statusVerified": "Authentification DNS conforme",
     "statusPending": "Envoi autorisé · DNS à compléter",
@@ -634,7 +634,7 @@
     "passwordHint": "Minimum 8 caractères, évitez les mots courants (password, 12345678…) — utilisé pour le webmail et les clients mail.",
     "passwordError": "Le mot de passe doit contenir au moins 8 caractères.",
     "passwordWeak": "Mot de passe refusé par le serveur mail : trop prévisible. Choisissez une combinaison plus longue avec des mots peu courants.",
-    "domainNotSynced": "Le domaine n'est pas encore synchronisé avec le serveur mail. Réessayez dans quelques instants ou contactez le support Kod Digor.",
+    "domainNotSynced": "Le domaine n'est pas encore synchronisé avec le serveur mail. Réessayez dans quelques instants ou contactez le support Kod BZH.",
     "quota": "Espace utilisé",
     "quotaLimit": "Limite d'espace",
     "quotaUnlimited": "Illimité",
@@ -794,7 +794,7 @@
     "emptyBody": "Ce message ne contient pas de texte lisible.",
     "noCredentials": "Pour activer le webmail intégré, définissez un nouveau mot de passe dans la liste des boîtes mail (icône crayon). Un mot de passe d'au moins 8 caractères suffit — inutile de recréer la boîte.",
     "noCredentialsAction": "Modifier le mot de passe",
-    "unconfigured": "Le webmail n'est pas configuré (WEBMAIL_URL). Contactez le support Kod Digor.",
+    "unconfigured": "Le webmail n'est pas configuré (WEBMAIL_URL). Contactez le support Kod BZH.",
     "webmailFrameTitle": "Webmail de {address}",
     "webmailFrameHint": "Webmail intégré de {address} — connecté automatiquement via Bulwark.",
     "senderPrimaryAddress": "Adresse principale",
@@ -850,7 +850,7 @@
   },
   "adminHealth": {
     "title": "Diagnostics plateforme",
-    "subtitle": "Tests de santé et vérifications infrastructure — réservé au bureau Kod Digor.",
+    "subtitle": "Tests de santé et vérifications infrastructure — réservé au bureau Kod BZH.",
     "runAll": "Lancer tous les tests",
     "runningAll": "Tests en cours…",
     "progress": "{completed} / {total} terminés",
@@ -944,31 +944,40 @@
   "association": {
     "nav": {
       "home": "Accueil",
-      "roadmap": "Roadmap",
+      "roadmap": "Feuille de route",
       "login": "Se connecter",
-      "signup": "Créer un espace"
+      "signup": "Créer un espace",
+      "manifesto": "Manifeste",
+      "ecosystem": "Écosystème",
+      "solutions": "Solutions",
+      "missions": "Nos engagements",
+      "audiences": "Pour qui"
     },
     "hero": {
-      "eyebrow": "Association bretonne — numérique libre et souverain",
-      "title": "Vos outils numériques. Vos données. Votre liberté.",
-      "subtitle": "Kod Digor construit un écosystème complet — messagerie, drive, bureautique, IA et plus — hébergé en Europe, chiffré, à prix justes, sans objectif commercial.",
-      "ctaRoadmap": "Voir la roadmap",
-      "ctaSignup": "Créer un espace"
+      "eyebrow": "Association du libre · Breizh",
+      "title": "Le numérique",
+      "subtitle": "Kod BZH développe, finance et héberge des logiciels libres pour la Bretagne. Une messagerie souveraine et des outils pour les associations, au service d’un numérique commun.",
+      "ctaRoadmap": "Voir la feuille de route",
+      "ctaSignup": "Découvrir les solutions",
+      "titleJoin": "est un",
+      "titleAccent": "bien commun",
+      "ctaSource": "Voir le code",
+      "note": "Libre · souverain · commun"
     },
     "values": {
-      "title": "Nos valeurs",
+      "title": "Le manifeste",
       "subtitle": "Un numérique au service des personnes, pas l'inverse.",
       "freedom": {
-        "title": "Liberté",
-        "description": "Des outils que vous contrôlez, sans enfermement propriétaire."
+        "title": "Libre",
+        "description": "Du code ouvert, des standards partagés et des outils que vous contrôlez, sans enfermement propriétaire."
       },
       "sovereignty": {
-        "title": "Souveraineté",
-        "description": "Données hébergées en Europe, infrastructure maîtrisée, open source dès que possible."
+        "title": "Souverain",
+        "description": "Des données hébergées en Europe. Aucun modèle publicitaire, aucune revente de vos données."
       },
       "fairPricing": {
         "title": "Prix justes",
-        "description": "Pas de modèle extractif : des tarifs transparents couvrant les coûts réels."
+        "description": "Des prix clients lisibles et des conditions commerciales claires, dans un cadre associatif."
       },
       "privacy": {
         "title": "Vie privée & RGPD",
@@ -981,37 +990,47 @@
       "accessibility": {
         "title": "Accessibilité",
         "description": "Des outils simples pour tous — familles, associations, entreprises, collectivités."
+      },
+      "manifestoStart": "Kod BZH construit un",
+      "manifestoAccent": "patrimoine numérique",
+      "manifestoEnd": "libre, souverain et commun.",
+      "common": {
+        "title": "Commun",
+        "description": "Un patrimoine numérique partagé, au service des citoyens, des communes, des associations et des entreprises."
       }
     },
     "comparison": {
-      "title": "Une alternative complète",
+      "title": "Ce qui nous rassemble",
       "subtitle": "Tout ce dont vous avez besoin, sans dépendre des géants du cloud.",
       "vsMicrosoft": "Alternative à Microsoft 365",
       "vsGoogle": "Alternative à Google Workspace",
       "vsApple": "Alternative à iCloud",
       "vsOdoo": "Alternative à Odoo pour les associations",
-      "pointSovereign": "Données en Europe, pas aux États-Unis",
-      "pointEncrypted": "Chiffrement et vie privée par conception",
-      "pointNoLockIn": "Standards ouverts, export à tout moment",
-      "pointNonProfit": "Association à but non lucratif, pas d'exploitation des données",
-      "pointAllInOne": "Un seul écosystème intégré — mail, drive, calendrier, IA…"
+      "pointSovereign": "Données hébergées en Europe",
+      "pointEncrypted": "Vie privée par conception",
+      "pointNoLockIn": "Standards ouverts, données exportables",
+      "pointNonProfit": "Un modèle associatif, sans but lucratif",
+      "pointAllInOne": "Un seul écosystème intégré — mail, drive, calendrier, IA…",
+      "statement": "L'objectif est de créer un patrimoine numérique commun. Des outils utiles, qui restent libres."
     },
     "products": {
       "title": "Notre écosystème",
-      "subtitle": "Chaque service est conçu pour fonctionner ensemble, en toute souveraineté.",
-      "viewRoadmap": "Voir la roadmap",
-      "allProducts": "Tous les produits"
+      "subtitle": "Une messagerie pour vos échanges. Un espace pour votre association. Choisissez la solution qui correspond à vos besoins.",
+      "viewRoadmap": "Voir la feuille de route",
+      "allProducts": "Voir tous les services et leur avancement",
+      "headline": "Des outils pour vous"
     },
     "audiences": {
-      "title": "Pour qui ?",
-      "family": "Familles et particuliers",
-      "familyDesc": "Un espace mail et des outils du quotidien, simples et privés.",
+      "title": "Pour qui",
+      "family": "Familles",
+      "familyDesc": "Une messagerie personnelle, simple et privée.",
       "association": "Associations",
-      "associationDesc": "Domaines, adhérents, messagerie et comptabilité pour votre structure.",
-      "business": "Entreprises & collectifs",
-      "businessDesc": "Multi-utilisateurs, boîtes partagées et collaboration sécurisée.",
+      "associationDesc": "Messagerie, adhérents et cotisations pour votre structure.",
+      "business": "Entreprises",
+      "businessDesc": "Des adresses professionnelles et des boîtes partagées pour votre équipe.",
       "collectivity": "Collectivités",
-      "collectivityDesc": "Solutions souveraines pour les besoins numériques publics."
+      "collectivityDesc": "Une messagerie souveraine pour les échanges de votre collectivité.",
+      "headline": "Celles & ceux qui font la Bretagne"
     },
     "schematic": {
       "title": "Un domaine, tout l'écosystème",
@@ -1022,20 +1041,57 @@
       "more": "Et bien plus…"
     },
     "cta": {
-      "title": "Rejoignez l'écosystème Kod Digor",
-      "subtitle": "Créez votre espace et commencez par la messagerie dès aujourd'hui.",
-      "signup": "Créer un espace",
-      "login": "Se connecter"
+      "title": "Bâtissons-le ensemble",
+      "subtitle": "Commencez par vos échanges avec Kod Mail, ou découvrez les outils associatifs de Kod Asso.",
+      "signup": "Créer mon espace",
+      "login": "Se connecter",
+      "eyebrow": "Rejoignez le commun"
     },
     "footer": {
-      "tagline": "Association Kod Digor — numérique libre et souverain en Bretagne",
-      "mission": "Outils, cloud et liberté numérique pour tous.",
+      "tagline": "Association du libre",
+      "mission": "Le numérique comme bien commun. Des logiciels libres, développés et partagés depuis la Bretagne.",
       "nav": "Navigation",
-      "values": "Liberté · Souveraineté · Prix justes · RGPD · Open source"
+      "values": "Libre · souverain · commun",
+      "participate": "Participer",
+      "location": "Kod BZH · Breizh / Bretagne"
+    },
+    "missions": {
+      "eyebrow": "Notre rôle",
+      "title": "Quatre engagements",
+      "subtitle": "Développer des outils utiles et les faire vivre dans la durée, avec celles et ceux qui les utilisent.",
+      "develop": {
+        "title": "Développer",
+        "description": "Des logiciels libres qui répondent aux besoins des associations, des communes, des entreprises et des citoyens."
+      },
+      "finance": {
+        "title": "Financer",
+        "description": "Soutenir les projets libres et les personnes qui les font vivre : développeurs, associations et collectifs."
+      },
+      "host": {
+        "title": "Héberger",
+        "description": "Une messagerie et des outils associatifs hébergés en Europe, au plus près des usages."
+      },
+      "share": {
+        "title": "Sensibiliser",
+        "description": "Partager les enjeux du logiciel libre, de la souveraineté numérique et de la protection des données."
+      }
+    },
+    "solutions": {
+      "discover": "Découvrir la solution",
+      "mail": {
+        "summary": "La messagerie libre et souveraine.",
+        "description": "Une adresse à votre nom, des boîtes partagées et vos e-mails accessibles depuis votre navigateur ou votre application habituelle.",
+        "status": "Disponible"
+      },
+      "asso": {
+        "summary": "Les outils de votre association.",
+        "description": "Adhérents, familles, cotisations, activités et comptabilité : les outils du quotidien associatif, réunis dans votre espace Kod Asso.",
+        "status": "Espace association"
+      }
     }
   },
   "roadmap": {
-    "title": "Roadmap produit",
+    "title": "Feuille de route",
     "subtitle": "Notre feuille de route vers un écosystème numérique complet, souverain et accessible à tous. Horizon 2026–2030.",
     "horizon": "Horizon 2026–2030",
     "filterCategory": "Catégorie",
@@ -1048,7 +1104,7 @@
     "backToRoadmap": "Retour à la roadmap",
     "ecosystem": {
       "title": "Écosystème intégré",
-      "subtitle": "Les produits Kod Digor sont conçus pour fonctionner ensemble."
+      "subtitle": "Les services Kod BZH sont conçus pour fonctionner ensemble."
     },
     "productDetail": {
       "replaces": "Alternative à",
@@ -1115,7 +1171,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           },
           "sovereignty": {
             "title": "Souveraineté",
@@ -1164,7 +1220,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1202,7 +1258,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1211,7 +1267,7 @@
           "direct-messages": "Messages directs chiffrés",
           "file-sharing": "Partage de fichiers dans le chat",
           "e2ee-rooms": "Salons chiffrés de bout en bout",
-          "sso-integration": "Intégration SSO Kod Digor",
+          "sso-integration": "Intégration SSO Kod BZH",
           "retention-policies": "Politiques de rétention des messages",
           "threads-reactions": "Fil de discussion et réactions",
           "bots-webhooks": "Bots et webhooks",
@@ -1271,7 +1327,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1336,7 +1392,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1368,7 +1424,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1430,7 +1486,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1461,7 +1517,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           },
           "advanced": {
             "title": "Avancé",
@@ -1498,7 +1554,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1553,7 +1609,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1564,7 +1620,7 @@
           "family-vault": "Coffre familial partagé",
           "org-vault": "Coffre organisation",
           "emergency-access": "Accès d'urgence",
-          "sso-bridge": "Pont SSO Kod Digor",
+          "sso-bridge": "Pont SSO Kod BZH",
           "passkeys": "Support des passkeys",
           "audit-security": "Audit de sécurité du coffre"
         }
@@ -1645,7 +1701,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1711,7 +1767,7 @@
       },
       "browser": {
         "title": "Navigateur",
-        "tagline": "Navigateur intégré à l'écosystème Kod Digor",
+        "tagline": "Navigateur intégré à l'écosystème Kod BZH",
         "description": "Fork Chromium, blocage trackers, sync et raccourcis suite.",
         "phases": {
           "foundations": {
@@ -1724,9 +1780,9 @@
           }
         },
         "tasks": {
-          "chromium-fork": "Fork Chromium Kod Digor",
+          "chromium-fork": "Fork Chromium Kod BZH",
           "tracker-blocking": "Blocage des traqueurs",
-          "kod-digor-sync": "Synchronisation compte Kod Digor",
+          "kod-digor-sync": "Synchronisation compte Kod BZH",
           "password-autofill": "Remplissage mots de passe",
           "vpn-toggle": "Activation VPN intégrée",
           "suite-shortcuts": "Raccourcis vers la suite"
@@ -1778,7 +1834,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1863,7 +1919,7 @@
           },
           "ecosystem": {
             "title": "Écosystème",
-            "goal": "Intégration avec les autres services Kod Digor"
+            "goal": "Intégration avec les autres services Kod BZH"
           }
         },
         "tasks": {
@@ -1874,7 +1930,7 @@
           "ci-cd-hosting": "Hébergement CI/CD",
           "mirror-registries": "Miroirs de registres",
           "security-audits": "Audits de sécurité",
-          "kod-digor-integration": "Intégration écosystème Kod Digor",
+          "kod-digor-integration": "Intégration écosystème Kod BZH",
           "bretagne-network": "Réseau Bretagne numérique libre",
           "eu-sovereignty-fund": "Fonds souveraineté numérique UE"
         }
@@ -1919,5 +1975,74 @@
     "noReports": "Aucun rapport reçu à ce jour. Les premiers rapports dépendent des destinataires et du volume d’envoi.",
     "reportCounts": "{total} messages déclarés · DKIM aligné : {dkim} · SPF aligné : {spf}",
     "reportIps": "Voir les adresses IP déclarées"
+  },
+  "solutionAccess": {
+    "backToSite": "Retour au site",
+    "loginTitle": "Bienvenue chez vous",
+    "signupTitle": "Créons votre espace",
+    "loginIntro": "Connectez-vous à votre compte Kod pour retrouver votre espace {name}.",
+    "signupIntro": "Créez votre compte Kod et préparez votre espace {name}.",
+    "loginTab": "Se connecter",
+    "signupTab": "Créer un compte",
+    "accountNavigation": "Accès à votre compte",
+    "presentation": "Présentation de {name}",
+    "tagline": "Libre · souverain · commun",
+    "associationName": "Nom de l’association",
+    "passwordHint": "Au moins 8 caractères.",
+    "activationNote": "Votre espace sera créé. Son activation se poursuit depuis la page Facturation.",
+    "signupSubmit": "Créer mon espace Kod",
+    "pending": "Un instant…",
+    "accountNote": "Un compte Kod pour accéder à vos espaces et à vos services.",
+    "invalidCredentials": "Vérifiez votre adresse e-mail et votre mot de passe. Pour créer un compte, renseignez aussi le nom de votre espace.",
+    "unavailable": "La connexion est momentanément indisponible. Réessayez dans quelques instants.",
+    "sessionExpired": "Votre session a expiré. Connectez-vous à nouveau.",
+    "otherSolution": "Découvrir {name}",
+    "mail": {
+      "headline": "Une messagerie qui vous appartient.",
+      "description": "Vos échanges personnels ou professionnels, dans une messagerie libre et hébergée en Europe. Vous gardez la main sur vos adresses et vos données.",
+      "status": "Kod Mail · disponible",
+      "features": {
+        "0": {
+          "title": "Votre adresse, votre domaine",
+          "description": "Utilisez une adresse Kod ou le nom de domaine de votre structure."
+        },
+        "1": {
+          "title": "Des boîtes partagées",
+          "description": "Gérez ensemble les adresses de contact et les échanges de votre équipe."
+        },
+        "2": {
+          "title": "Vos habitudes, vos outils",
+          "description": "Accédez à vos e-mails sur le web ou depuis votre application de messagerie."
+        },
+        "3": {
+          "title": "Des données sous contrôle",
+          "description": "Hébergement européen, standards ouverts et absence de modèle publicitaire."
+        }
+      }
+    },
+    "asso": {
+      "headline": "Votre association, au même endroit.",
+      "description": "Kod Asso se prépare à réunir les outils du quotidien associatif : adhérents, cotisations et événements, dans un espace commun à votre équipe.",
+      "status": "Kod Asso · en préparation",
+      "accountNote": "Kod Asso est en préparation. Le formulaire donne accès à votre compte Kod ; il ne débloque pas encore la gestion associative.",
+      "features": {
+        "0": {
+          "title": "Les adhérents",
+          "description": "Réunir les coordonnées, les adhésions et les rôles de chacun."
+        },
+        "1": {
+          "title": "Les cotisations",
+          "description": "Retrouver les adhésions et suivre les cotisations de votre association."
+        },
+        "2": {
+          "title": "Les événements",
+          "description": "Organiser les rendez-vous et les inscriptions au même endroit."
+        },
+        "3": {
+          "title": "Le travail collectif",
+          "description": "Partager le suivi avec le bureau et les bénévoles de votre association."
+        }
+      }
+    }
   }
 }
