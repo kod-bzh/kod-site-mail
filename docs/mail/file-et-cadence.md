@@ -1,0 +1,15 @@
+# Admission sans quota bloquant, livraison en file
+
+Le 26 octobre 2026, la production comptait exactement 200 destinataires sur les 24 dernières heures pour l’organisation concernée. L’ancien plafond KOD (20 messages/minute, 200 destinataires/24 h) refusait les intentions suivantes avec HTTP 429 avant toute soumission. Il est supprimé, y compris lorsque les anciennes variables MAIL_SEND_MINUTE_LIMIT et MAIL_SEND_DAILY_RECIPIENT_LIMIT sont encore présentes. La table historique MailSendBudget est conservée sans migration destructive et n’intervient plus dans l’admission.
+
+L’API valide les adresses, autorisations, suppressions et fichiers, réserve le suivi puis soumet une seule fois à Stalwart. Le serveur conserve le message et ses vraies pièces jointes dans sa file durable ; aucune copie des corps ou PDF n’est ajoutée au journal de suivi. HTTP 200 confirme la soumission, pas la réception distante. Un résultat ambigu ne déclenche jamais une nouvelle soumission.
+
+`ensure-outbound-pacing.py` configure une cadence native de 20 opérations de livraison par minute et par hôte MX, pour le trafic ordinaire distant. C’est une cadence de sortie : les autres messages restent en attente dans Stalwart, sans erreur de quota par minute/jour à l’API. Ce nombre décrit les opérations du limiteur natif, pas une garantie stricte de 20 emails ou destinataires par minute : une opération SMTP peut regrouper des destinataires. Les règles de reprise et d’expiration restent celles des files existantes ; une expiration ou un rejet définitif demeure visible dans le suivi. La file Orange/Wanadoo à deux traitements simultanés est préservée. DSN et rapports sont exclus de cette cadence.
+
+Exécuter sur la VM `python3 /opt/framm/deploy/scripts/ensure-outbound-pacing.py --dry-run`, puis sans cette option. Les réglages sont sauvegardés en privé avant mutation, relus après rechargement, les règles d’autres opérateurs conservées. `--operations-per-minute` ajuste la cadence. `--disable` désactive uniquement cette règle ; aucun message n’est supprimé, déplacé ou rejoué. Une nouvelle exécution est idempotente. Configuration relue et régulation réellement observée sont des preuves distinctes.
+
+La validation PostgreSQL isolée vérifie l’admission concurrente au-delà des anciens plafonds, les identifiants uniques, les suppressions Bcc et l’isolation entre organisations, sans appel SMTP. Les tests natifs simulent les opérations de configuration et vérifient la préservation des autres règles. Aucune demande client déjà refusée n’est automatiquement rejouée : ces demandes n’avaient pas été mises en file par KOD.
+
+Le libellé MD2 « Pièce jointe ou destinataire invalide » provient aussi d’une erreur de préparation avant l’appel KOD. Il ne permet pas à lui seul d’identifier un fichier ou une adresse défectueuse et n’est pas corrigé par la suppression du quota. Aucun code MD2 n’est modifié ici.
+
+Source officielle : [régulation sortante Stalwart](https://stalw.art/docs/mta/outbound/rate-limit/), qui conserve les messages en file lorsque la fenêtre de sortie est épuisée. Une cadence et une acceptation SMTP ne garantissent pas le classement hors spam.

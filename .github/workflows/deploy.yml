@@ -75,6 +75,7 @@ jobs:
         run: |
           npx prisma migrate deploy
           docker exec -i '${{ job.services.mail-test-postgres.id }}' psql -v ON_ERROR_STOP=1 -U postgres -d kodtest < ../../deploy/tests/mail-deliverability-db.sql
+          npx tsx scripts/check-mail-policy.ts
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

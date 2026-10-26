@@ -27,7 +27,6 @@ export type OrgMailSendError =
   | "invalid_to"
   | "invalid_attachments"
   | "recipient_suppressed"
-  | "rate_limited"
   | "missing_content"
   | "domain_not_in_org"
   | "domain_not_verified"

@@ -968,7 +968,7 @@
     "/api/v1/mail/send": {
       "post": {
         "summary": "Soumettre un email avec de vraies pièces jointes, sans garantir sa livraison",
-        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains.",
+        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains. Aucun quota bloquant par minute ou par jour : après soumission, la livraison est régulée dans la file SMTP durable. Ne jamais resoumettre automatiquement un résultat incertain. Les validations, suppressions et limites de fichiers restent actives.",
         "security": [
           {
             "BearerAuth": []
@@ -1020,9 +1020,6 @@
           },
           "422": {
             "description": "recipient_suppressed : refus explicite ; aucun envoi"
-          },
-          "429": {
-            "description": "rate_limited : aucun envoi"
           },
           "502": {
             "description": "Résultat de soumission potentiellement incertain ; consulter le suivi et ne jamais rejouer automatiquement."

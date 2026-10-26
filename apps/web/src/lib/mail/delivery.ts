@@ -4,13 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getSubmissionDelivery } from "@/lib/stalwart/client";
 import { aggregateDelivery, permanentAddressFailure, type RecipientDelivery } from "./delivery-status";
 
-function limit(name: string, fallback: number): number {
-  const value = Number(process.env[name]);
-  return Number.isInteger(value) && value > 0 ? value : fallback;
-}
-export const MAIL_LIMIT_DEFAULTS = { minute: 20, dailyRecipients: 200 };
 export class MailPolicyError extends Error {
-  constructor(public code: "recipient_suppressed" | "rate_limited", message: string) { super(message); }
+  constructor(public code: "recipient_suppressed", message: string) { super(message); }
 }
 export async function reserveOutbound(input: {
   organizationId: string; accountId: string; fromAddress: string; subject: string;
@@ -19,17 +14,10 @@ export async function reserveOutbound(input: {
 }) {
   const addresses = [...input.recipients.to, ...input.recipients.cc, ...input.recipients.bcc];
   return prisma.$transaction(async tx => {
-    // A row lock serializes all senders/pods for this organization, not only this process.
-    await tx.$executeRaw`INSERT INTO "MailSendBudget" ("organizationId") VALUES (${input.organizationId}) ON CONFLICT DO NOTHING`;
-    await tx.$queryRaw`SELECT "organizationId" FROM "MailSendBudget" WHERE "organizationId" = ${input.organizationId} FOR UPDATE`;
     const suppressed = await tx.mailSuppression.findFirst({ where: { organizationId: input.organizationId, address: { in: addresses } } });
     if (suppressed) throw new MailPolicyError("recipient_suppressed", `Destinataire bloqué : ${suppressed.address} (${suppressed.reason}). Aucun envoi effectué.`);
-    const now = Date.now();
-    const minuteCount = await tx.outboundMessage.count({ where: { organizationId: input.organizationId, createdAt: { gte: new Date(now - 60_000) } } });
-    const day = await tx.outboundMessage.aggregate({ where: { organizationId: input.organizationId, createdAt: { gte: new Date(now - 86_400_000) } }, _sum: { recipientCount: true } });
-    if (minuteCount >= limit("MAIL_SEND_MINUTE_LIMIT", MAIL_LIMIT_DEFAULTS.minute) || (day._sum.recipientCount ?? 0) + addresses.length > limit("MAIL_SEND_DAILY_RECIPIENT_LIMIT", MAIL_LIMIT_DEFAULTS.dailyRecipients)) {
-      throw new MailPolicyError("rate_limited", "Limite progressive atteinte. Réessayer plus tard ; aucun envoi effectué.");
-    }
+    // Admission has no minute/day sending quota. Stalwart owns the durable
+    // delivery queue and outbound pacing after the single submission.
     return tx.outboundMessage.create({ data: {
       ...input, initiatorId: input.initiatorId ?? "admin", recipients: input.recipients,
       recipientCount: addresses.length, rfcMessageId: `${randomUUID()}@${input.fromAddress.split("@")[1]}`,
