@@ -1,9 +1,23 @@
-import { describe, it, expect } from "vitest";
-import { approvedSndsUrl, normalizeGoogle, connectorPublic, parseCsv } from "./provider-connectors";
+import { describe, it, expect, vi } from "vitest";
+import { approvedSndsUrl, normalizeGoogle, connectorPublic, parseCsv, boundedResponse, fetchGoogle } from "./provider-connectors";
 import type { MailConnector } from "@prisma/client";
 import { classifySource } from "./source-inventory";
 import { recipientProvider } from "./smtp-metrics";
 describe("honest provider observations", () => {
+  it("keeps HTTP status when a provider error body is invalid or oversized without exposing it", async () => {
+    for (const body of ["not JSON secret", "x".repeat(64001), JSON.stringify({ error: { errors: [{ reason: "secret-token" }] } })]) {
+      try { await boundedResponse(new Response(body, { status: 429, headers: { "Retry-After": "secret-token" } })); expect.fail("expected refusal"); }
+      catch (error) { expect(error).toMatchObject({ httpStatus: 429, state: "error", message: "Fournisseur HTTP 429" }); expect(error).toHaveProperty("reason", undefined); expect(error).toHaveProperty("retryAfterSeconds", undefined); }
+    }
+  });
+  it("refuses missing or NONE domain permission before reading Google statistics", async () => {
+    for (const permission of [undefined, "NONE", "PERMISSION_UNSPECIFIED"]) {
+      const mock = vi.fn().mockResolvedValueOnce(Response.json({ access_token: "fixture" })).mockResolvedValueOnce(Response.json({ permission }));
+      vi.stubGlobal("fetch", mock);
+      try { await expect(fetchGoogle("example.org", { clientId: "fixture", clientSecret: "fixture", refreshToken: "fixture" })).rejects.toMatchObject({ state: "authorization_required" }); expect(mock).toHaveBeenCalledTimes(2); }
+      finally { vi.unstubAllGlobals(); }
+    }
+  });
   it("preserves missing metrics as null and explicit reported zero as zero", () => {
     const empty = normalizeGoogle({}); expect(empty.domainReputation).toBeNull();
     expect(empty.userReportedSpamRatio).toMatchObject({ value: null, numerator: null, denominator: null });

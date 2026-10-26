@@ -21,9 +21,30 @@ export const COVERAGE: Record<Provider, string> = {
   microsoft365_dmarc: "Rapports d’un dossier dédié autorisé via Microsoft Graph ; aucune modification des MX",
   blocklists: "Uniquement listes et résolveurs explicitement autorisés ; une impossibilité reste inconnue",
 };
-export class ProviderError extends Error { constructor(readonly state: "authorization_required" | "error", message: string) { super(message); } }
+export class ProviderError extends Error {
+  constructor(readonly state: "authorization_required" | "error", message: string,
+    readonly httpStatus?: number, readonly reason?: string, readonly retryAfterSeconds?: number) { super(message); }
+}
+const providerReasons = new Set(["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "quotaExceeded",
+  "RATE_LIMIT_EXCEEDED", "QUOTA_EXCEEDED", "RESOURCE_EXHAUSTED", "SERVICE_DISABLED", "ACCESS_TOKEN_SCOPE_INSUFFICIENT", "PERMISSION_DENIED"]);
+function providerRetryAfter(value: string | null) {
+  if (!value) return undefined;
+  const seconds = /^\d+$/.test(value) ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
+  return Number.isFinite(seconds) && seconds >= 0 && seconds <= 86400 ? seconds : undefined;
+}
 export async function boundedResponse(response: Response, maximum = 2_000_000): Promise<Buffer> {
-  if (!response.ok) throw new ProviderError([401, 403, 404].includes(response.status) ? "authorization_required" : "error", `Fournisseur HTTP ${response.status}`);
+  if (!response.ok) {
+    // Only fixed reason codes may leave the provider response. Messages/metadata can contain secrets.
+    let reason: string | undefined;
+    try {
+      const body = JSON.parse((await boundedResponse(new Response(response.body), 64000)).toString("utf8"));
+      const candidates = [...(Array.isArray(body.error?.errors) ? body.error.errors.map((item: { reason?: unknown }) => item?.reason) : []),
+        ...(Array.isArray(body.error?.details) ? body.error.details.map((item: { reason?: unknown }) => item?.reason) : []), body.error?.status];
+      reason = candidates.find(value => typeof value === "string" && providerReasons.has(value));
+    } catch { /* An absent, invalid or oversized error body must not hide the HTTP status. */ }
+    throw new ProviderError([401, 403, 404].includes(response.status) ? "authorization_required" : "error", `Fournisseur HTTP ${response.status}`,
+      response.status, reason, providerRetryAfter(response.headers.get("retry-after")));
+  }
   if (!response.body) throw new ProviderError("error", "Réponse fournisseur absente");
   const chunks: Buffer[] = []; let total = 0; const reader = response.body.getReader();
   try { while (true) { const { done, value } = await reader.read(); if (done) break; total += value.length;
@@ -57,7 +78,7 @@ export async function fetchGoogle(domain: string, credentials: z.infer<typeof go
   const token = await googleAccessToken(credentials), headers = { Authorization: `Bearer ${token}` };
   // GET existing registration first; never create/re-enrol an existing domain.
   const registration = await jsonFetch(`https://gmailpostmastertools.googleapis.com/v1/domains/${encodeURIComponent(domain)}`, { headers });
-  if (registration.permission === "PERMISSION_UNSPECIFIED") throw new ProviderError("authorization_required", "Accès au domaine Google Postmaster à confirmer");
+  if (!["OWNER", "READER"].includes(registration.permission)) throw new ProviderError("authorization_required", "Accès au domaine Google Postmaster à confirmer");
   const rows: { start: Date; end: Date; data: Prisma.InputJsonValue }[] = [];
   let page = "";
   for (let count = 0; count < 10; count++) {
