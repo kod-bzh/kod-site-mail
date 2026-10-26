@@ -15,6 +15,7 @@ import {
   updateAccountPassword,
 } from "@/lib/stalwart/client";
 import { slugify } from "@/lib/utils";
+import { authEntryUrl, getSolutionKey } from "@/lib/solution-access";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
 
@@ -36,6 +37,7 @@ function resolveAuthEmail(formData: FormData) {
 }
 
 export async function signupAction(formData: FormData) {
+  const solution = getSolutionKey(formData.get("solution"));
   const parsed = signupSchema.safeParse({
     orgName: formData.get("orgName"),
     email: resolveAuthEmail(formData),
@@ -43,7 +45,7 @@ export async function signupAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/signup?error=invalid");
+    redirect(authEntryUrl(solution, "signup", { error: "invalid" }));
   }
 
   const { orgName, email, password } = parsed.data;
@@ -56,7 +58,7 @@ export async function signupAction(formData: FormData) {
 
   if (existing) {
     const valid = await bcrypt.compare(password, existing.passwordHash);
-    if (!valid) redirect("/signup?error=invalid");
+    if (!valid) redirect(authEntryUrl(solution, "signup", { error: "invalid" }));
 
     const org = await prisma.organization.create({
       data: {
@@ -126,7 +128,7 @@ export async function signupAction(formData: FormData) {
       redirect: false,
     });
   } catch (err) {
-    redirect(`/login?error=${resolveSignInRedirectError(err)}`);
+    redirect(authEntryUrl(solution, "login", { error: resolveSignInRedirectError(err) }));
   }
 
   redirect(isPayplugConfigured() ? "/dashboard/billing?setup=1" : "/dashboard/billing?stub=1");
@@ -189,11 +191,12 @@ export async function changePasswordAction(
 }
 
 export async function loginAction(formData: FormData) {
+  const solution = getSolutionKey(formData.get("solution"));
   const email = resolveAuthEmail(formData);
   const password = formData.get("password") as string;
   const callbackUrl = (formData.get("callbackUrl") as string | null)?.trim();
 
-  if (!email || !password) redirect("/login?error=invalid");
+  if (!email || !password) redirect(authEntryUrl(solution, "login", { error: "invalid", callbackUrl }));
 
   try {
     await signIn("credentials", {
@@ -202,7 +205,7 @@ export async function loginAction(formData: FormData) {
       redirect: false,
     });
   } catch (err) {
-    redirect(`/login?error=${resolveSignInRedirectError(err)}`);
+    redirect(authEntryUrl(solution, "login", { error: resolveSignInRedirectError(err), callbackUrl }));
   }
 
   let user;
@@ -212,7 +215,7 @@ export async function loginAction(formData: FormData) {
       include: { memberships: true },
     });
   } catch (err) {
-    redirect(`/login?error=${isDbUnavailableError(err) ? "db" : "invalid"}`);
+    redirect(authEntryUrl(solution, "login", { error: isDbUnavailableError(err) ? "db" : "invalid", callbackUrl }));
   }
 
   const safeCallback =

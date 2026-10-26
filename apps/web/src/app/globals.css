@@ -1,30 +1,78 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ardoise: #1a2332;
-  --color-encre: #0c4a6e;
-  --color-encre-muted: #e8f1f6;
-  --color-ambre: #b45309;
-  --color-canal: #e8e6e1;
-  --color-verin: #166534;
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --color-ardoise: #1a1a1a;
+  --color-encre: #1612d3;
+  --color-encre-700: #110ea8;
+  --color-encre-muted: #e7e6fb;
+  --color-ambre: #c2410c;
+  --color-canal: #e0ded6;
+  --color-verin: #1f7a4d;
+  --color-creme: #f5f4ef;
+  --color-creme-deep: #ecebe3;
+  --color-paper: #fbfaf6;
+  --color-neutral-50: #fbfaf6;
+  --color-neutral-100: #edece6;
+  --color-neutral-200: #e0ded6;
+  --color-neutral-300: #cbc9bf;
+  --color-neutral-400: #a8a69b;
+  --color-neutral-600: #6a685f;
+}
+
+@theme inline {
+  --font-sans: var(--font-brand-sans), system-ui, sans-serif;
+  --font-mono: var(--font-brand-mono), ui-monospace, monospace;
+  --font-display: var(--font-brand-display), sans-serif;
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #1a2332;
+  --background: #f5f4ef;
+  --foreground: #1a1a1a;
+}
+
+html {
+  scroll-padding-top: 7rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-brand-sans), system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #e7e6fb;
+  color: #1612d3;
+}
+
+a:focus-visible,
+summary:focus-visible,
+button:focus-visible {
+  outline: 2px solid #1612d3;
+  outline-offset: 4px;
 }
 
 @layer utilities {
   .font-mono-data {
-    font-family: var(--font-mono), ui-monospace, monospace;
+    font-family: var(--font-brand-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .brand-heading {
+    font-family: var(--font-brand-display), sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .brand-eyebrow {
+    font-family: var(--font-brand-mono), ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 }
 

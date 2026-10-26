@@ -29,7 +29,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         },
         "sovereignty": {
           "title": "Souveraineté",
@@ -78,7 +78,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -116,7 +116,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -125,7 +125,7 @@
         "direct-messages": "Messages directs chiffrés",
         "file-sharing": "Partage de fichiers dans le chat",
         "e2ee-rooms": "Salons chiffrés de bout en bout",
-        "sso-integration": "Intégration SSO Kod Digor",
+        "sso-integration": "Intégration SSO Kod BZH",
         "retention-policies": "Politiques de rétention des messages",
         "threads-reactions": "Fil de discussion et réactions",
         "bots-webhooks": "Bots et webhooks",
@@ -185,7 +185,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -250,7 +250,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -282,7 +282,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -344,7 +344,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -375,7 +375,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         },
         "advanced": {
           "title": "Avancé",
@@ -412,7 +412,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -467,7 +467,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -478,7 +478,7 @@
         "family-vault": "Coffre familial partagé",
         "org-vault": "Coffre organisation",
         "emergency-access": "Accès d'urgence",
-        "sso-bridge": "Pont SSO Kod Digor",
+        "sso-bridge": "Pont SSO Kod BZH",
         "passkeys": "Support des passkeys",
         "audit-security": "Audit de sécurité du coffre"
       }
@@ -559,7 +559,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -625,7 +625,7 @@
     },
     "browser": {
       "title": "Navigateur",
-      "tagline": "Navigateur intégré à l'écosystème Kod Digor",
+      "tagline": "Navigateur intégré à l'écosystème Kod BZH",
       "description": "Fork Chromium, blocage trackers, sync et raccourcis suite.",
       "phases": {
         "foundations": {
@@ -638,9 +638,9 @@
         }
       },
       "tasks": {
-        "chromium-fork": "Fork Chromium Kod Digor",
+        "chromium-fork": "Fork Chromium Kod BZH",
         "tracker-blocking": "Blocage des traqueurs",
-        "kod-digor-sync": "Synchronisation compte Kod Digor",
+        "kod-digor-sync": "Synchronisation compte Kod BZH",
         "password-autofill": "Remplissage mots de passe",
         "vpn-toggle": "Activation VPN intégrée",
         "suite-shortcuts": "Raccourcis vers la suite"
@@ -692,7 +692,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -777,7 +777,7 @@
         },
         "ecosystem": {
           "title": "Écosystème",
-          "goal": "Intégration avec les autres services Kod Digor"
+          "goal": "Intégration avec les autres services Kod BZH"
         }
       },
       "tasks": {
@@ -788,7 +788,7 @@
         "ci-cd-hosting": "Hébergement CI/CD",
         "mirror-registries": "Miroirs de registres",
         "security-audits": "Audits de sécurité",
-        "kod-digor-integration": "Intégration écosystème Kod Digor",
+        "kod-digor-integration": "Intégration écosystème Kod BZH",
         "bretagne-network": "Réseau Bretagne numérique libre",
         "eu-sovereignty-fund": "Fonds souveraineté numérique UE"
       }

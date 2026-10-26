@@ -29,7 +29,7 @@ export function RoadmapTaskTable({ slug }: RoadmapTaskTableProps) {
   const taskIds = new Set(allTasks.map((t) => t.id));
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-canal bg-white">
+    <div className="overflow-x-auto rounded-xl border border-canal bg-paper">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
           <tr className="border-b border-canal bg-neutral-50/80">
