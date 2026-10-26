@@ -121,3 +121,15 @@ it("exposes a bounded phase/status diagnostic without returning provider payload
   for (const secret of ["secret-access", "secret-refresh", "private-provider-detail", "fixture-code"]) expect(JSON.stringify(body)).not.toContain(secret);
   expect([...rows.values()].every(row => !row.secretCipher)).toBe(true);
 });
+it("identifies a Google quota refusal separately from authorization and retains only safe retry evidence", async () => {
+  const { state, cookie } = await authorize();
+  fetchMock.mockResolvedValueOnce(Response.json({ access_token: "secret-access", refresh_token: "secret-refresh", scope: POSTMASTER_SCOPE }))
+    .mockResolvedValueOnce(Response.json({ error: { status: "RESOURCE_EXHAUSTED", message: "private secret-access",
+      details: [{ reason: "RATE_LIMIT_EXCEEDED", metadata: { credential: "secret-refresh" } }] } }, { status: 429, headers: { "Retry-After": "120" } }));
+  const response = await finishPostmasterOAuth(callback(state, cookie)), body = await response.json();
+  expect(response.status).toBe(503); expect(response.headers.get("retry-after")).toBe("120");
+  expect(body).toMatchObject({ status: "verification_rate_limited", diagnostic: { phase: "domain_access", code: "provider_http_429", reason: "RATE_LIMIT_EXCEEDED", retryAfterSeconds: 120 } });
+  expect(body.action).toContain("Ce refus ne prouve pas un problème de droits");
+  for (const secret of ["secret-access", "secret-refresh", "fixture-code", "metadata"]) expect(JSON.stringify(body)).not.toContain(secret);
+  expect([...rows.values()].every(row => !row.secretCipher)).toBe(true);
+});

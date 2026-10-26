@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sealSecret, unsealSecret } from "@/lib/crypto/seal";
-import { boundedResponse } from "./provider-connectors";
+import { boundedResponse, ProviderError } from "./provider-connectors";
 
 export const POSTMASTER_SCOPE = "https://www.googleapis.com/auth/postmaster.readonly";
 export const POSTMASTER_COOKIE = "__Host-kod-postmaster-oauth";
@@ -122,9 +122,14 @@ export async function finishPostmasterOAuth(req: NextRequest) {
     const message = error instanceof Error ? error.message : "";
     const known = new Set(["invalid_state", "expired_state", "oauth_configuration_changed", "browser_state_mismatch", "state_already_consumed", "domain_not_authorized", "consent_not_completed", "readonly_offline_grant_not_confirmed", "postmaster_domain_access_not_confirmed"]);
     const http = message.match(/^Fournisseur HTTP (\d{3})$/);
-    const diagnostic = { phase, code: known.has(message) ? message : http ? `provider_http_${http[1]}` : "authorization_unavailable" };
-    response = NextResponse.json({ status: "authorization_failed", diagnostic,
-      action: phase === "domain_access" ? "Vérifier que l’API Gmail Postmaster Tools est activée dans le projet OAuth et que le compte dispose des droits sur chaque domaine, puis recommencer la connexion." : "Recommencer la connexion et vérifier le client OAuth, le consentement lecture seule et les droits sur les domaines." }, { status: 400, headers });
+    const limited = error instanceof ProviderError && error.httpStatus === 429;
+    const diagnostic = { phase, code: known.has(message) ? message : http ? `provider_http_${http[1]}` : "authorization_unavailable",
+      ...(error instanceof ProviderError && error.reason ? { reason: error.reason } : {}),
+      ...(limited && error.retryAfterSeconds !== undefined ? { retryAfterSeconds: error.retryAfterSeconds } : {}) };
+    response = NextResponse.json({ status: limited ? "verification_rate_limited" : "authorization_failed", diagnostic,
+      action: limited ? "Google limite la vérification Postmaster (HTTP 429). Vérifier les quotas et l’état du service dans le projet Google Cloud, puis réessayer après le délai indiqué. Ce refus ne prouve pas un problème de droits sur le domaine et ne concerne pas l’envoi des emails KOD."
+        : phase === "domain_access" ? "Vérifier que l’API Gmail Postmaster Tools est activée dans le projet OAuth et que le compte dispose des droits sur chaque domaine, puis recommencer la connexion." : "Recommencer la connexion et vérifier le client OAuth, le consentement lecture seule et les droits sur les domaines." },
+      { status: limited ? 503 : 400, headers: { ...headers, ...(limited && error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : {}) } });
   }
   response.cookies.set(POSTMASTER_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   return response;
