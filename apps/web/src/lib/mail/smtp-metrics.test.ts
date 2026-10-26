@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ find: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { outboundMessage: { findMany: mocks.find } } }));
-import { orangeDiagnostic, recipientProvider, smtpMetrics } from "./smtp-metrics";
+import { orangeDiagnostic, providerDiagnostic, recipientProvider, smtpMetrics } from "./smtp-metrics";
 beforeEach(() => vi.clearAllMocks());
 it("recognizes French providers by exact recipient domains or bounded MX suffixes", () => {
   expect(recipientProvider("test@WANADOO.FR")).toBe("orange_wanadoo");
@@ -9,6 +9,21 @@ it("recognizes French providers by exact recipient domains or bounded MX suffixe
   for (const [domain, provider] of [["sfr.fr", "sfr"], ["free.fr", "free"], ["laposte.net", "laposte"]]) expect(recipientProvider(`test@${domain}`)).toBe(provider);
   for (const host of ["orange.fr.evil.test", "fakeorange.fr", "evil-sfr.fr", "free.fr.evil.test"]) expect(recipientProvider("test@example.org", host)).toBe("other_or_unknown");
   expect(recipientProvider("test@orange.fr", "tenant.mail.protection.outlook.com")).toBe("microsoft365");
+});
+it("separates Outlook consumer from Microsoft 365 and identifies bounded Proofpoint evidence", () => {
+  expect(recipientProvider("test@hotmail.com", "hotmail-com.olc.protection.outlook.com")).toBe("outlook_consumer");
+  expect(recipientProvider("test@example.org", "tenant.mail.protection.outlook.com")).toBe("microsoft365");
+  expect(recipientProvider("test@example.org", "mxa-004bdd01.gslb.pphosted.com")).toBe("proofpoint");
+  expect(recipientProvider("test@example.org", "mailhub.example.org", "Unexpected response for : Code: 554, Message: Blocked - see https://ipcheck.proofpoint.com/?ip=51.15.220.2")).toBe("proofpoint");
+  expect(recipientProvider("test@example.org", "pphosted.com.evil.test")).toBe("other_or_unknown");
+});
+it("classifies policy blocks and recipient-directory refusals without inventing address failures", () => {
+  const blocked = { source: "smtp" as const, state: "FAILED" as const, smtpReply: "Unexpected response for : Code: 554, Message: Blocked - see https://ipcheck.proofpoint.com/?ip=51.15.220.2" };
+  expect(providerDiagnostic("proofpoint", blocked)).toMatchObject({ code: "PDR_IP_BLOCK", category: "ip_blocked" });
+  expect(providerDiagnostic("proofpoint", { ...blocked, source: "dsn" })).toBeNull();
+  expect(providerDiagnostic("outlook_consumer", { ...blocked, smtpReply: "550 5.7.1 Network is on our block list (S3140)" })).toMatchObject({ code: "S3140", category: "ip_blocked" });
+  expect(providerDiagnostic("microsoft365", { ...blocked, smtpReply: "550 5.4.1 Recipient address rejected: Access denied" })).toMatchObject({ category: "recipient_directory" });
+  expect(providerDiagnostic("microsoft365", { ...blocked, smtpReply: "550 5.7.1 Access denied" })).toBeNull();
 });
 it("interprets explicit OFR suffixes only from an observed Orange SMTP reply", () => {
   expect(orangeDiagnostic("orange_wanadoo", { source: "smtp", smtpReply: "550 IP blocked OFR_099" })).toMatchObject({ code: "099", category: "ip_blocked" });

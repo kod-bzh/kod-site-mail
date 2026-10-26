@@ -16,6 +16,13 @@ describe("honest delivery observations", () => {
     expect(aggregateDelivery({ "a@example.org": { delivered: "yes" } }, ["a@example.org", "b@example.org"])).toBe("UNKNOWN");
     expect(aggregateDelivery({ "a@example.org": { delivered: "yes" }, "b@example.org": { delivered: "no" } }, ["a@example.org", "b@example.org"])).toBe("PARTIAL");
   });
+  it("keeps a temporary JMAP refusal unknown unless transport evidence establishes the outcome", () => {
+    const temporary = { delivered: "no", smtpReply: "452 4.4.5 Rate limit exceeded, try again later." };
+    expect(recipientState(temporary)).toBe("UNKNOWN");
+    expect(aggregateDelivery({ "a@example.org": temporary }, ["a@example.org"])).toBe("UNKNOWN");
+    expect(recipientState({ ...temporary, delivered: "queued" })).toBe("QUEUED");
+    expect(recipientState({ ...temporary, source: "smtp", state: "FAILED", evidenceId: "expired" })).toBe("FAILED");
+  });
   it("suppresses invalid addresses but never spam/authentication policy refusals", () => {
     expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.1.1 User unknown" })).toBe(true);
     expect(permanentAddressFailure({ delivered: "no", smtpReply: "550 5.7.1 Spam rejected" })).toBe(false);

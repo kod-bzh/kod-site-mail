@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { recipientState, type RecipientDelivery } from "./delivery-status";
-export function recipientProvider(address: string, remoteMta?: string) {
+export function recipientProvider(address: string, remoteMta?: string, observedReply?: string) {
   const domain = address.split("@")[1]?.toLowerCase(), host = (remoteMta ?? "").toLowerCase().replace(/\.$/, "");
   const suffix = (value: string) => host === value || host.endsWith(`.${value}`);
+  if (suffix("olc.protection.outlook.com")) return "outlook_consumer";
+  if (suffix("pphosted.com") || /https:\/\/ipcheck\.proofpoint\.com\/\?ip=/.test(observedReply ?? "")) return "proofpoint";
   if (suffix("protection.outlook.com")) return "microsoft365";
   if (["outlook.com", "hotmail.com", "live.com", "msn.com"].includes(domain)) return "outlook_consumer";
   if (suffix("google.com") || suffix("googlemail.com") || ["gmail.com", "googlemail.com"].includes(domain)) return "google_mx";
@@ -38,22 +40,44 @@ export function orangeDiagnostic(provider: string, value: RecipientDelivery) {
   if (!match) return null;
   return { code: match[1], ...(orangeCodes[String(Number(match[1]))] ?? { category: "provider_policy_unknown", action: "Consulter le diagnostic officiel Orange." }), source: ORANGE_POSTMASTER };
 }
+export function providerDiagnostic(provider: string, value: RecipientDelivery) {
+  const orange = orangeDiagnostic(provider, value);
+  if (orange) return orange;
+  if (value.source !== "smtp" || !/(?:^|Code:\s*)[45]\d{2}\b/.test(value.smtpReply ?? "")) return null;
+  const reply = value.smtpReply ?? "";
+  if (provider === "proofpoint" && /https:\/\/ipcheck\.proofpoint\.com\/\?ip=/.test(reply)) return {
+    code: "PDR_IP_BLOCK", category: "ip_blocked", action: "Examiner l’IP d’envoi et demander son réexamen par la procédure officielle Proofpoint ; ce rejet ne prouve pas une adresse invalide.",
+    source: "https://www.proofpoint.com/us/support-services/ip-blocked-faq",
+  };
+  if (provider === "proofpoint" && /Local Policy Violation: Reputation Services/i.test(reply)) return {
+    code: "PROOFPOINT_REPUTATION_POLICY", category: "provider_reputation_policy", action: "Examiner le refus de réputation avec l’administrateur destinataire ; la liste de blocage précise n’est pas fournie.",
+    source: "https://www.proofpoint.com/us/support-services/ip-blocked-faq",
+  };
+  const outlook = provider === "outlook_consumer" ? reply.match(/\b(S31[45]0)\b/) : null;
+  if (outlook) return { code: outlook[1], category: "ip_blocked", action: "Examiner l’IP et contacter le support de délivrabilité Outlook.com ; distinguer ce service de Microsoft 365.",
+    source: "https://substrate.office.com/ip-domain-management-snds/Postmaster/Troubleshooting" };
+  if (provider === "microsoft365" && /5\.4\.1\b/.test(reply) && /Recipient address rejected: Access denied/i.test(reply)) return {
+    code: "M365_RECIPIENT_DIRECTORY", category: "recipient_directory", action: "Faire confirmer l’adresse et demander à l’administrateur destinataire de vérifier les alias, DBEB et la synchronisation de l’annuaire.",
+    source: "https://learn.microsoft.com/en-us/troubleshoot/exchange/email-delivery/ndr/fix-error-code-550-5-4-1",
+  };
+  return null;
+}
 export async function smtpMetrics(organizationId: string, domain: string, start: Date, end: Date) {
   const messages = await prisma.outboundMessage.findMany({ where: { organizationId, fromAddress: { endsWith: `@${domain}` }, createdAt: { gte: start, lt: end } },
     select: { recipients: true, deliveryJson: true, status: true }, take: 10001 });
   const result: Record<string, { requestedRecipients: number; observedRecipients: number; accepted: number; failed: number; lateBounceReports: number; waiting: number; unknown: number;
-    lastSmtpObservationAt: string | null; diagnostics: Record<string, NonNullable<ReturnType<typeof orangeDiagnostic>> & { count: number }> }> = {};
+    lastSmtpObservationAt: string | null; diagnostics: Record<string, NonNullable<ReturnType<typeof providerDiagnostic>> & { count: number }> }> = {};
   for (const message of messages.slice(0, 10000)) {
     const recipients = message.recipients as { to: string[]; cc: string[]; bcc: string[] };
     const delivery = (message.deliveryJson ?? {}) as Record<string, RecipientDelivery>;
     for (const address of [...recipients.to, ...recipients.cc, ...recipients.bcc]) {
-      const value = delivery[address] ?? {}, provider = recipientProvider(address, value.remoteMta);
+      const value = delivery[address] ?? {}, provider = recipientProvider(address, value.remoteMta, value.source === "smtp" ? value.smtpReply : undefined);
       const row = result[provider] ??= { requestedRecipients: 0, observedRecipients: 0, accepted: 0, failed: 0, lateBounceReports: 0, waiting: 0, unknown: 0, lastSmtpObservationAt: null, diagnostics: {} };
       row.requestedRecipients++; const state = recipientState(value);
       if (value.source === "smtp") {
         row.observedRecipients++;
         if (value.observedAt && Number.isFinite(Date.parse(value.observedAt)) && (!row.lastSmtpObservationAt || Date.parse(value.observedAt) > Date.parse(row.lastSmtpObservationAt))) row.lastSmtpObservationAt = value.observedAt;
-        const diagnostic = orangeDiagnostic(provider, value);
+        const diagnostic = providerDiagnostic(provider, value);
         if (diagnostic) { row.diagnostics[diagnostic.code] ??= { ...diagnostic, count: 0 }; row.diagnostics[diagnostic.code].count++; }
       }
       if (value.source === "smtp" && ["ACCEPTED", "DELIVERED"].includes(state)) row.accepted++;
