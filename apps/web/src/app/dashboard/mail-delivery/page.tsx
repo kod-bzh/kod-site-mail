@@ -6,7 +6,6 @@ import { requireOrgAdmin, getOrgId } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { getT } from "@/i18n/t";
 import { DELIVERY_NOTICE } from "@/lib/mail/delivery-status";
-import { MAIL_LIMIT_DEFAULTS } from "@/lib/mail/delivery";
 export const dynamic = "force-dynamic";
 export default async function MailDeliveryPage() {
   const session = await requireOrgAdmin();
@@ -39,7 +38,7 @@ export default async function MailDeliveryPage() {
     <div><h1 className="text-2xl font-semibold">{t("title")}</h1><p className="mt-2 text-sm text-zinc-600">{DELIVERY_NOTICE}</p></div>
     <div className="grid gap-4 md:grid-cols-3">
       <div className="rounded-lg border p-4"><p className="text-sm text-zinc-500">{t("monitor")}</p><strong className={fresh ? "text-green-800" : "text-amber-800"}>{fresh ? t("active") : t("notObserved")}</strong><p className="text-xs text-zinc-500">{monitor?.checkedAt.toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}</p></div>
-      <div className="rounded-lg border p-4"><p className="text-sm text-zinc-500">{t("limits")}</p><p>{t("limitsValue", { minute: Number(process.env.MAIL_SEND_MINUTE_LIMIT) || MAIL_LIMIT_DEFAULTS.minute, daily: Number(process.env.MAIL_SEND_DAILY_RECIPIENT_LIMIT) || MAIL_LIMIT_DEFAULTS.dailyRecipients })}</p></div>
+      <div className="rounded-lg border p-4"><p className="text-sm text-zinc-500">{t("limits")}</p><p>{t("limitsValue")}</p></div>
       <div className="rounded-lg border p-4"><p className="text-sm text-zinc-500">{t("reputation")}</p><p className="text-amber-800">{t("notMeasured")}</p><Link className="text-sm underline" href="https://postmaster.google.com/" target="_blank" rel="noreferrer">{t("postmaster")}</Link></div>
     </div>
     <section className="space-y-3"><h2 className="font-semibold">Surveillance et autorisations</h2>

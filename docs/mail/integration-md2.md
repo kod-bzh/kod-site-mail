@@ -56,7 +56,7 @@ if ($raw === false) {
 }
 $result = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
 // Persister les identifiants et le résultat métier avant tout traitement ultérieur.
-// HTTP 422/429 = refus explicite ; HTTP 502/timeout = vérifier avant toute décision.
+// HTTP 400/413/422 = refus explicite ; HTTP 502/timeout = vérifier avant toute décision.
 ```
 
 Pour plusieurs fichiers avec des parties attachments répétées, utiliser un client multipart capable de répéter le même nom (ex. Guzzle). Ne pas nommer attachments[0], attachments[1] sur le fil : seuls attachments et attachments[] sont reconnus.
@@ -96,3 +96,7 @@ Les filtres de webhook sont exacts lorsqu’une liste eventTypes est fournie. Po
 ## Fournisseurs français
 
 Dans `/mail/domains/{domain}/reputation`, exploiter les lignes `smtp.providers` orange_wanadoo, sfr, free et laposte. Afficher l’absence d’observations comme inconnue ; `requestedRecipients: 0` ne prouve ni zéro plainte ni une bonne réputation. Les diagnostics OFR donnent un motif Orange, une action et un volume observé, sans preuve de boîte principale. Ne jamais convertir `inboxPlacement: null` en « hors spam ». Ne pas créer une nouvelle soumission pour contourner une limitation : suivre le message existant et laisser le serveur SMTP gérer ses reprises natives. Aucune modification automatique du corps ou du PDF.
+
+## Admission et file de livraison
+
+L’API ne refuse plus un message valide parce qu’un volume par minute ou par jour est atteint. Les anciennes limites de 20 messages/minute et 200 destinataires/24 h sont retirées. La livraison est régulée dans la file SMTP durable après une seule soumission. Un message peut rester QUEUED ; le suivi et les webhooks décrivent ses reports, acceptations, rejets ou expiration. Ne jamais refaire POST pour accélérer un envoi en attente, et ne pas relancer automatiquement une ancienne demande refusée ou incertaine. Les vérifications d’adresses, de suppressions, d’autorisations et de pièces jointes demeurent actives.

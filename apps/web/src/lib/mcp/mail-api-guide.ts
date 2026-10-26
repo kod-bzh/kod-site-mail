@@ -106,7 +106,7 @@ export function getMailSendApiGuide() {
       safety: "Aucun bouton, pixel, lien ni corps ajouté. Aucune tâche de collecte ou de notification ne soumet un email. Les suppressions explicites restent visibles et bloquent avec une erreur, jamais silencieusement.",
     },
     protections: {
-      limits: "Par défaut : 20 messages/minute et 200 destinataires/24 h par organisation (toutes clés et pods confondus). Ajustables par l’administrateur après contrôle de réputation.",
+      queue: "Aucun quota bloquant de messages par minute ou de destinataires par jour à l’entrée de l’API. Après soumission unique, les messages attendent dans la file SMTP durable ; la cadence de livraison peut les différer sans nouveau POST. Les validations des destinataires, suppressions explicites et limites de pièces jointes restent actives.",
       suppressions: "Adresses inexistantes confirmées (5.1.1, 5.1.2, 5.1.3, 5.1.6) bloquées automatiquement. Refus anti-spam 5.7 et pannes temporaires exclus. Un destinataire bloqué annule l’envoi entier.",
       management: `POST ou DELETE ${base}/api/v1/mail/suppressions {address, reason?, organizationSlug?}, scope api_keys:write ou admin. reason : manual, hard_bounce, complaint, unsubscribe. Ajout/retrait journalisé. Ne retirer un blocage qu’après correction de sa cause.`,
       defaults: "Un domaine peut définir un nom d’expéditeur et une adresse de réponse surveillée ; les valeurs explicites du client restent prioritaires.",
@@ -122,7 +122,6 @@ export function getMailSendApiGuide() {
       "413 payload_too_large": "Multipart : fichiers cumulés au-delà de 50 Mo, plus de 100 fichiers ou formulaire trop volumineux. Aucun email envoyé.",
       "503 upload_unavailable": "Réception temporaire des fichiers indisponible ; aucun email envoyé.",
       "422 recipient_suppressed": "Adresse bloquée : aucun destinataire contacté.",
-      "429 rate_limited": "Budget progressif de l’organisation atteint ; aucun envoi effectué.",
       "503 smtp_not_configured": "Aucune boîte Stalwart pour cet expéditeur — appeler ensure_mailbox",
       "502 send_failed": "Résultat potentiellement incertain ; consulter le suivi avant toute décision, jamais de renvoi automatique.",
     },
