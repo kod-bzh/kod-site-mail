@@ -111,3 +111,13 @@ it("does not mark an unverified Google domain authorized", async () => {
   fetchMock.mockResolvedValueOnce(Response.json({ access_token: "x", refresh_token: "y", scope: POSTMASTER_SCOPE })).mockResolvedValueOnce(Response.json({ permission: "NONE" }));
   expect((await finishPostmasterOAuth(callback(state, cookie))).status).toBe(400); expect([...rows.values()].every(row => !row.secretCipher)).toBe(true);
 });
+it("exposes a bounded phase/status diagnostic without returning provider payloads or secrets", async () => {
+  const { state, cookie } = await authorize();
+  fetchMock.mockResolvedValueOnce(Response.json({ access_token: "secret-access", refresh_token: "secret-refresh", scope: POSTMASTER_SCOPE }))
+    .mockResolvedValueOnce(Response.json({ error: { message: "private-provider-detail", credential: "secret-access" } }, { status: 403 }));
+  const response = await finishPostmasterOAuth(callback(state, cookie));
+  const body = await response.json();
+  expect(body).toMatchObject({ status: "authorization_failed", diagnostic: { phase: "domain_access", code: "provider_http_403" } });
+  for (const secret of ["secret-access", "secret-refresh", "private-provider-detail", "fixture-code"]) expect(JSON.stringify(body)).not.toContain(secret);
+  expect([...rows.values()].every(row => !row.secretCipher)).toBe(true);
+});

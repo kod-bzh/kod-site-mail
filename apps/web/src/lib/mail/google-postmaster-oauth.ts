@@ -68,6 +68,7 @@ export async function openPostmasterOAuth(state: string) {
 }
 export async function finishPostmasterOAuth(req: NextRequest) {
   let response: NextResponse;
+  let phase = "browser_state";
   try {
     const state = req.nextUrl.searchParams.get("state") ?? "", { connector, pending, nonce, cfg } = await pendingFor(state);
     const cookie = req.cookies.get(POSTMASTER_COOKIE)?.value ?? "";
@@ -84,11 +85,13 @@ export async function finishPostmasterOAuth(req: NextRequest) {
     });
     const code = req.nextUrl.searchParams.get("code"), verifier = unsealSecret(pending.verifierCipher);
     if (req.nextUrl.searchParams.has("error") || !code || !verifier || code.length > 4096) throw Error("consent_not_completed");
+    phase = "token_exchange";
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", redirect: "error", signal: AbortSignal.timeout(20_000),
       headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: cfg.clientId, client_secret: cfg.clientSecret,
         redirect_uri: cfg.redirectUri, grant_type: "authorization_code", code_verifier: verifier }) });
     const tokens = JSON.parse((await boundedResponse(tokenResponse, 64000)).toString("utf8"));
     if (typeof tokens.access_token !== "string" || typeof tokens.refresh_token !== "string" || tokens.scope !== POSTMASTER_SCOPE) throw Error("readonly_offline_grant_not_confirmed");
+    phase = "domain_access";
     for (const domain of pending.domains) {
       const response = await fetch(`https://gmailpostmastertools.googleapis.com/v1/domains/${encodeURIComponent(domain)}`, { redirect: "error", signal: AbortSignal.timeout(20_000), headers: { Authorization: `Bearer ${tokens.access_token}` } });
       const registered = JSON.parse((await boundedResponse(response, 64000)).toString("utf8"));
@@ -97,6 +100,7 @@ export async function finishPostmasterOAuth(req: NextRequest) {
     const credentials = sealSecret(JSON.stringify({ clientId: cfg.clientId, clientSecret: cfg.clientSecret, refreshToken: tokens.refresh_token }));
     const refreshSeconds = tokens.refresh_token_expires_in;
     const expiresAt = typeof refreshSeconds === "number" && refreshSeconds > 0 && refreshSeconds < 10 * 365 * 86400 ? new Date(Date.now() + refreshSeconds * 1000) : null;
+    phase = "credential_storage";
     await prisma.$transaction(async tx => {
       // Recheck ownership at commit time; no credentials for transferred domains.
       await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${connector.organizationId} FOR UPDATE`;
@@ -113,9 +117,14 @@ export async function finishPostmasterOAuth(req: NextRequest) {
       await tx.auditLog.create({ data: { organizationId: connector.organizationId, action: "mail.postmaster.oauth_connected", target: pending.domains.join(","), metadata: { scope: POSTMASTER_SCOPE, domainAccessVerified: true, expiryProvidedByGoogle: !!expiresAt } } });
     });
     response = NextResponse.json({ status: "authorized", domains: pending.domains, scope: POSTMASTER_SCOPE, metrics: "awaiting_collection", credentialsExposed: false }, { headers });
-  } catch {
+  } catch (error) {
     // Provider error payloads and callback codes may contain credentials. Never log or return them.
-    response = NextResponse.json({ status: "authorization_failed", action: "Recommencer la connexion et vérifier le client OAuth, le consentement lecture seule et les droits sur les domaines." }, { status: 400, headers });
+    const message = error instanceof Error ? error.message : "";
+    const known = new Set(["invalid_state", "expired_state", "oauth_configuration_changed", "browser_state_mismatch", "state_already_consumed", "domain_not_authorized", "consent_not_completed", "readonly_offline_grant_not_confirmed", "postmaster_domain_access_not_confirmed"]);
+    const http = message.match(/^Fournisseur HTTP (\d{3})$/);
+    const diagnostic = { phase, code: known.has(message) ? message : http ? `provider_http_${http[1]}` : "authorization_unavailable" };
+    response = NextResponse.json({ status: "authorization_failed", diagnostic,
+      action: phase === "domain_access" ? "Vérifier que l’API Gmail Postmaster Tools est activée dans le projet OAuth et que le compte dispose des droits sur chaque domaine, puis recommencer la connexion." : "Recommencer la connexion et vérifier le client OAuth, le consentement lecture seule et les droits sur les domaines." }, { status: 400, headers });
   }
   response.cookies.set(POSTMASTER_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   return response;
