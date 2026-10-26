@@ -10,7 +10,7 @@ import time
 import urllib.request
 
 MARKER = "KOD managed ordinary outbound queue pacing v1"
-MATCH = {"else": "source != 'dsn' && source != 'report'"}
+MATCH = {"match": {}, "else": "source != 'dsn' && source != 'report'"}
 
 
 def reconcile(api, backup, count=20, dry_run=False, enabled=True):

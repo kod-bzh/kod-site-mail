@@ -17,7 +17,11 @@ class PacingTests(unittest.TestCase):
     def api(self, method, args):
         self.calls.append((method, args))
         if method == "x:MtaOutboundThrottle/get":
-            return {"list": copy.deepcopy(self.rows)}
+            rows = copy.deepcopy(self.rows)
+            for row in rows:
+                if "match" in row:
+                    row["match"].setdefault("match", {})
+            return {"list": rows}
         if method == "x:MtaOutboundThrottle/set":
             for key, value in args.get("create", {}).items():
                 self.rows.append({"id": key, **copy.deepcopy(value)})
