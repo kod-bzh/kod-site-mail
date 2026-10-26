@@ -5,6 +5,9 @@ export type RecipientDelivery = {
 export type RecipientState = "QUEUED" | "ACCEPTED" | "DELIVERED" | "FAILED" | "BOUNCED" | "UNKNOWN";
 export function recipientState(status: RecipientDelivery): RecipientState {
   if (status.source && status.state) return status.state;
+  // A JMAP delivered=no paired with a temporary SMTP reply is not a durable
+  // terminal receipt. In particular, it does not establish queue expiry.
+  if (status.delivered === "no" && /^4\d\d\b/.test(status.smtpReply ?? "")) return "UNKNOWN";
   if (status.delivered === "no") return "FAILED";
   if (status.delivered === "yes") return "DELIVERED";
   if (status.delivered === "queued") return "QUEUED";

@@ -4,6 +4,7 @@ import { MAIL_SEND_SCOPE } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 import { refreshOutbound } from "@/lib/mail/delivery";
 import { DELIVERY_NOTICE } from "@/lib/mail/delivery-status";
+import { messageSearch } from "@/lib/mail/message-search";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const actor = await resolveV1ActorFromRequest(req);
@@ -26,7 +27,10 @@ export async function GET(req: Request) {
       include: { telemetryEvents: { orderBy: { receivedAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, source: true, reliability: true, occurredAt: true, receivedAt: true, data: true } }, events: { orderBy: { occurredAt: "asc" }, take: 100, select: { id: true, type: true, recipient: true, occurredAt: true, data: true } } } });
     return Response.json({ message: message ? safeMessage(message) : null, notice: DELIVERY_NOTICE });
   }
-  const messages = await prisma.outboundMessage.findMany({ where, orderBy: { createdAt: "desc" }, take: 50,
+  let search;
+  try { search = messageSearch(url); } catch { return Response.json({ error: "invalid_query" }, { status: 400 }); }
+  const messages = await prisma.outboundMessage.findMany({ where: { ...where, AND: search.filters }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: search.limit + 1,
     omit: { leaseUntil: true, initiatorId: true, accountId: true } });
-  return Response.json({ messages: messages.map(safeMessage), limit: 50, notice: DELIVERY_NOTICE });
+  return Response.json({ messages: messages.slice(0, search.limit).map(safeMessage), limit: search.limit, period: search.period,
+    nextCursor: messages.length > search.limit ? search.nextCursor(messages[search.limit - 1]) : null, notice: DELIVERY_NOTICE });
 }

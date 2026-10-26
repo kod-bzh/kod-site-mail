@@ -882,7 +882,7 @@
     "/api/v1/mail/messages": {
       "get": {
         "summary": "Suivi SMTP, plaintes et MDN des messages de la clé",
-        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains.",
+        "description": "Droit requis : mail:send. Les clés peuvent être limitées par allowedMailDomains. Recherche bornée par from, recipient et période ; pagination nextCursor stable sur createdAt puis id, avec fin de période figée. La recherche ne soumet aucun email. Les filtres ne modifient jamais le périmètre de la clé.",
         "security": [
           {
             "BearerAuth": []
@@ -913,6 +913,58 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "recipient",
+            "in": "query",
+            "required": false,
+            "description": "Adresse exacte To/Cc/Bcc dans le périmètre autorisé de la clé.",
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Début inclusif de la période de création des soumissions.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Fin exclusive. Conserver la même période pendant la pagination.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Taille de page, maximum 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Curseur opaque nextCursor de la page précédente. Conserver les mêmes filtres.",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
           }
         ],
         "responses": {
@@ -934,6 +986,27 @@
                     },
                     "notice": {
                       "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "period": {
+                      "type": "object",
+                      "properties": {
+                        "since": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "until": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
                     }
                   }
                 }
